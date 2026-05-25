@@ -9,10 +9,15 @@ Complete guide for deploying the Asset Management Multi-Agent Platform to AWS.
 3. [Quick Start](#quick-start)
 4. [Detailed Deployment Steps](#detailed-deployment-steps)
 5. [Post-Deployment Configuration](#post-deployment-configuration)
-6. [Verification](#verification)
-7. [Troubleshooting](#troubleshooting)
-8. [Cost Estimation](#cost-estimation)
-9. [Cleanup](#cleanup)
+6. [LLM Features (AWS Bedrock)](#llm-features-aws-bedrock)
+7. [Verification](#verification)
+8. [Monitoring](#monitoring)
+9. [Rollback](#rollback)
+10. [Troubleshooting](#troubleshooting)
+11. [Cost Estimation](#cost-estimation)
+12. [Cleanup](#cleanup)
+13. [Command Reference](#command-reference)
+14. [Advanced Topics](#advanced-topics)
 
 ---
 
@@ -126,6 +131,12 @@ Your IAM user/role needs permissions for:
 │         │                  │  CloudWatch Logs │              │
 │         │                  │  (Monitoring)    │              │
 │         │                  └──────────────────┘              │
+│         │                            │                        │
+│         │                            ▼                        │
+│         │                  ┌──────────────────┐              │
+│         │                  │  Amazon Bedrock  │              │
+│         │                  │  (optional LLM)  │              │
+│         │                  └──────────────────┘              │
 │         │                                                     │
 └─────────┴─────────────────────────────────────────────────────┘
           │
@@ -146,11 +157,38 @@ Example for dev environment:
 - S3: `asset-management-dev-frontend`
 - API Gateway: `asset-management-dev-api`
 
+### Lambda Functions (dev defaults)
+
+| Function | Memory | Timeout | Bedrock IAM |
+|----------|--------|---------|-------------|
+| `{prefix}-backend` | 512 MB | 30s | Yes |
+| `{prefix}-research-agent` | 256 MB | 15s | Yes |
+| `{prefix}-sentiment-mcp` | 256 MB | 15s | Yes |
+
+### DynamoDB Tables
+
+- `{prefix}-approvals`
+- `{prefix}-audit-events`
+- `{prefix}-portfolios`
+- `{prefix}-sessions`
+- `{prefix}-memory-queue`
+- `{prefix}-preferences`
+
 ---
 
 ## Quick Start
 
-For experienced users who want to deploy immediately:
+For experienced users who want to deploy immediately.
+
+### Option A: One-command deploy
+
+```bash
+./infra/scripts/deploy.sh dev
+```
+
+Requires `infra/terraform/environments/dev/dev.tfvars` (copy from `dev.tfvars.example` if needed).
+
+### Option B: Manual steps
 
 ```bash
 # 1. Package Lambda functions
@@ -166,15 +204,19 @@ terraform init
 terraform plan -var-file=dev.tfvars
 terraform apply -var-file=dev.tfvars
 
-# 4. Deploy frontend
+# 4. Deploy frontend (include api_token from dev.tfvars for /api/* access)
 cd ../../../..
+API_TOKEN=$(grep '^api_token' infra/terraform/environments/dev/dev.tfvars | sed -n 's/.*= *"\(.*\)".*/\1/p')
 ./infra/scripts/publish_frontend.sh \
   "$(terraform -chdir=infra/terraform/environments/dev output -raw api_base_url)" \
-  "$(terraform -chdir=infra/terraform/environments/dev output -raw frontend_bucket_name)"
+  "$(terraform -chdir=infra/terraform/environments/dev output -raw frontend_bucket_name)" \
+  "${API_TOKEN}"
 
 # 5. Get frontend URL
 terraform -chdir=infra/terraform/environments/dev output -raw frontend_website_url
 ```
+
+Day-2 operations (redeploy Lambda, tail logs, DynamoDB scans): [Command Reference](#command-reference).
 
 ---
 
@@ -368,17 +410,6 @@ Uploaded frontend to s3://asset-management-dev-frontend/
 
 ## Post-Deployment Configuration
 
-### Get Your Application URL
-
-```bash
-terraform -chdir=infra/terraform/environments/dev output -raw frontend_website_url
-```
-
-Example output:
-```
-http://asset-management-dev-frontend.s3-website-us-east-1.amazonaws.com
-```
-
 ### Configure Custom Domain (Optional)
 
 To use a custom domain like `app.yourdomain.com`:
@@ -389,30 +420,73 @@ To use a custom domain like `app.yourdomain.com`:
 
 See [Custom Domain Setup](#custom-domain-setup) for details.
 
-### Enable Bedrock Access (For LLM Features)
+### Application URLs
 
-If you want to use LLM-enhanced features:
+After deploy, read URLs from Terraform outputs (do not hardcode account-specific URLs):
 
-1. **Request Bedrock model access:**
-   - Go to AWS Console → Bedrock → Model access
-   - Request access to Claude models
-   - Wait for approval (~5 minutes)
+```bash
+# Frontend (S3 static website)
+terraform -chdir=infra/terraform/environments/dev output -raw frontend_website_url
 
-2. **Update Lambda IAM role:**
-   ```bash
-   # Add Bedrock permissions to backend Lambda
-   aws iam attach-role-policy \
-     --role-name asset-management-dev-backend-role \
-     --policy-arn arn:aws:iam::aws:policy/AmazonBedrockFullAccess
-   ```
+# Backend API
+terraform -chdir=infra/terraform/environments/dev output -raw api_base_url
+```
 
-3. **Enable LLM features** in backend environment variables:
-   ```hcl
-   # In main.tf, add to backend_lambda environment_variables:
-   REBALANCING_AGENT_LLM_ENABLED = "true"
-   RESEARCH_AGENT_LLM_ENABLED = "true"
-   # ... etc
-   ```
+---
+
+## LLM Features (AWS Bedrock)
+
+The dev Terraform configuration enables LLM-enhanced agents by default. Bedrock permissions and feature flags are defined in `infra/terraform/environments/dev/main.tf`.
+
+### 1. Request Bedrock model access
+
+1. Open **AWS Console → Bedrock → Model access**
+2. Request access to the Claude models you plan to use
+3. Wait for approval (often a few minutes)
+
+### 2. IAM permissions (Terraform)
+
+Terraform attaches Bedrock invoke permissions to all three Lambda execution roles:
+
+- `bedrock:InvokeModel`
+- `bedrock:InvokeModelWithResponseStream`
+- Resource: `*` (all Bedrock models in the account/region)
+
+Policy documents: `backend_bedrock` (backend) and `agent_bedrock` (research agent and sentiment MCP).
+
+### 3. Feature flags (backend Lambda)
+
+Default dev environment variables:
+
+```hcl
+FEATURE_MEMORY_AGENT_LLM_ENABLED         = "true"
+FEATURE_RESEARCH_AGENT_LLM_ENABLED       = "true"
+FEATURE_SENTIMENT_AGENT_LLM_ENABLED      = "true"
+FEATURE_REBALANCING_AGENT_LLM_ENABLED    = "true"
+FEATURE_RISK_AGENT_LLM_ENABLED           = "true"
+FEATURE_TRADE_PROPOSAL_AGENT_LLM_ENABLED = "true"
+FEATURE_FALLBACK_ON_LLM_FAILURE          = "true"
+```
+
+`FEATURE_FALLBACK_ON_LLM_FAILURE` keeps the app working if Bedrock calls fail.
+
+Agent Lambdas set agent-specific flags (`FEATURE_RESEARCH_AGENT_LLM_ENABLED`, `FEATURE_SENTIMENT_AGENT_LLM_ENABLED`).
+
+### 4. Disable or tune LLMs
+
+Set any `FEATURE_*_LLM_ENABLED` variable to `"false"` in `main.tf`, then:
+
+```bash
+cd infra/terraform/environments/dev
+terraform plan -var-file=dev.tfvars
+terraform apply -var-file=dev.tfvars
+```
+
+Or redeploy with `./infra/scripts/deploy.sh dev` if you use the project deploy script.
+
+### Related docs
+
+- [STARTUP_GUIDE.md](STARTUP_GUIDE.md) — local run, LLMs, allocation validation
 
 ---
 
@@ -469,43 +543,98 @@ open "$(terraform -chdir=infra/terraform/environments/dev output -raw frontend_w
 ```
 
 **What to verify:**
-- ✅ Page loads without errors
-- ✅ "Asset Management" title visible
-- ✅ Portfolio data loads
-- ✅ Market simulation stream works
-- ✅ Can generate rebalance recommendations
-- ✅ Can access preferences page
+- Page loads without errors
+- "Asset Management" title visible
+- Portfolio data loads
+- Market simulation stream works
+- Can generate rebalance recommendations
+- Can access preferences page
 
-### 4. Check CloudWatch Logs
+### 4. Test allocation validation (frontend)
+
+1. Open the frontend URL from Terraform output
+2. Click **Preferences**, choose **Aggressive** (max concentration 85%)
+3. On the allocation screen, set equity to 90%
+4. **Expected:** red error; you cannot proceed
+5. Set equity to 85% or less
+6. **Expected:** error clears; you can proceed
+
+A 0% cash allocation shows an orange informational warning (not blocking). The **Aggressive** preset uses 85/10/5 (equity/bonds/cash) to stay within the default 85% concentration limit.
+
+### 5. Test LLM-enhanced recommendations
+
+1. Submit a rebalance request from the main page
+2. Tail backend logs and look for Bedrock activity (see [Monitoring](#monitoring))
+3. Confirm recommendation output reflects LLM-enhanced agents when Bedrock is available
+
+### 6. Test policy-block acknowledgment
+
+1. Trigger a scenario that produces a policy-blocked recommendation
+2. Click **Acknowledge Policy Block**
+3. **Expected:** block cleared; recommendation dismissed (REJECT is allowed on blocked items via `backend/app/api/routes/approvals.py`)
+
+### 7. Verify LLM configuration on Lambda
 
 ```bash
-# Backend logs
-aws logs tail /aws/lambda/asset-management-dev-backend --follow
-
-# Research agent logs
-aws logs tail /aws/lambda/asset-management-dev-research-agent --follow
-
-# Sentiment MCP logs
-aws logs tail /aws/lambda/asset-management-dev-sentiment-mcp --follow
+aws lambda get-function-configuration \
+  --function-name asset-management-dev-backend \
+  --query 'Environment.Variables' \
+  --region us-east-1 | grep FEATURE_
 ```
 
-### 5. Check DynamoDB Tables
+Confirm `FEATURE_*_LLM_ENABLED` values and that Bedrock policies are attached to Lambda roles in IAM.
+
+### 8. Check DynamoDB Tables
+
+See [Command Reference → DynamoDB](#dynamodb).
+
+### Verification checklist
+
+- Backend Lambda deployed with expected environment variables
+- Research agent and sentiment MCP Lambdas have Bedrock IAM policies
+- `curl "${API_URL}/health"` returns healthy
+- Frontend loads from S3 website URL
+- DynamoDB tables exist and are readable by Lambdas
+- Allocation validation and policy-block flows behave as above (if testing UI)
+
+---
+
+## Monitoring
+
+- **CloudWatch Logs** — tail Lambda logs, filter errors, grep Bedrock: [Command Reference → Logs](#logs)
+- **CloudWatch Metrics** — invocations, errors, DynamoDB capacity: [Command Reference → Metrics](#metrics)
+- **Cost Explorer CLI** — monthly spend by service: [Command Reference → Cost monitoring](#cost-monitoring)
+- **Console** — Cost Explorer for Bedrock line items after enabling LLMs
+
+---
+
+## Rollback
+
+### Option 1: Disable LLM features only
+
+In `infra/terraform/environments/dev/main.tf`, set all `FEATURE_*_LLM_ENABLED` (and agent-specific flags) to `"false"`, then:
 
 ```bash
-# List portfolios
-aws dynamodb scan \
-  --table-name asset-management-dev-portfolios \
-  --max-items 5
+cd infra/terraform/environments/dev
+terraform plan -var-file=dev.tfvars
+terraform apply -var-file=dev.tfvars
+```
 
-# List preferences
-aws dynamodb scan \
-  --table-name asset-management-dev-preferences \
-  --max-items 5
+Redeploy frontend if needed: `./infra/scripts/publish_frontend.sh ...`
+
+### Option 2: Full application rollback
+
+```bash
+git log --oneline   # find the last good commit
+git revert <commit-hash>
+./infra/scripts/deploy.sh dev   # or your usual deploy flow
 ```
 
 ---
 
 ## Troubleshooting
+
+For log filtering, IAM inspection, CORS tests, and API Gateway checks, see [Command Reference → Operations troubleshooting](#operations-troubleshooting).
 
 ### Issue: Lambda Package Too Large
 
@@ -553,10 +682,7 @@ aws s3 cp s3://YOUR-BUCKET/app-config.js -
 # 2. Check CORS configuration
 # In dev.tfvars, ensure cors_allow_origins includes "*" or your domain
 
-# 3. Redeploy frontend
-./infra/scripts/publish_frontend.sh \
-  "$(terraform -chdir=infra/terraform/environments/dev output -raw api_base_url)" \
-  "$(terraform -chdir=infra/terraform/environments/dev output -raw frontend_bucket_name)"
+# 3. Redeploy frontend (see Command Reference → Deploy and update frontend)
 ```
 
 ### Issue: Lambda Timeout
@@ -601,9 +727,22 @@ AccessDeniedException: Could not access model
 ```
 
 **Solution:**
-1. Request model access in AWS Console → Bedrock
-2. Add Bedrock permissions to Lambda role
-3. Wait 5-10 minutes for permissions to propagate
+1. Request model access in AWS Console → Bedrock → Model access
+2. Confirm Terraform applied `backend_bedrock` / `agent_bedrock` policies to Lambda roles
+3. Wait 5–10 minutes for permissions to propagate
+4. Verify feature flags on the Lambda environment (see [LLM Features](#llm-features-aws-bedrock))
+
+### Issue: Bedrock Access Denied (IAM)
+
+**Solution:** Re-run `terraform apply` and confirm the Lambda execution role includes `bedrock:InvokeModel` and `bedrock:InvokeModelWithResponseStream`.
+
+### Issue: High Bedrock costs
+
+**Solution:** Set unused `FEATURE_*_LLM_ENABLED` flags to `"false"`, rely on `FEATURE_FALLBACK_ON_LLM_FAILURE`, and monitor usage in Cost Explorer.
+
+### Issue: Frontend validation not updating
+
+**Solution:** Hard-refresh or clear browser cache after redeploying the frontend to S3.
 
 ---
 
@@ -624,7 +763,21 @@ AccessDeniedException: Could not access model
 | **S3** | 1 GB storage, 1,000 requests | ~$0.05 |
 | **CloudWatch Logs** | 1 GB logs/month | ~$0.50 |
 | **Data Transfer** | 3 GB/month | ~$0.27 |
-| **Total** | | **~$2.35/month** |
+| **Total (no LLM)** | | **~$2.35/month** |
+
+### Development with LLMs enabled
+
+**Typical range:** ~$5–15/month for light dev usage.
+
+| Component | Estimate |
+|-----------|----------|
+| Lambda, API Gateway, DynamoDB, S3, logs | ~$2–4/month (as above) |
+| **Bedrock** | ~$2–10/month (usage-dependent) |
+
+**Bedrock usage notes:**
+- A single rebalance flow may trigger roughly 5–10 LLM calls
+- Rough cost per rebalance request: ~$0.01–0.05
+- `FEATURE_FALLBACK_ON_LLM_FAILURE=true` avoids hard failures when Bedrock is unavailable
 
 ### Production Costs (Estimated)
 
@@ -654,34 +807,263 @@ AccessDeniedException: Could not access model
 
 ## Cleanup
 
-### Remove All AWS Resources
+Destroying infrastructure **deletes all data** (DynamoDB tables, S3 objects, Lambdas, API Gateway, IAM roles, log groups).
+
+Full teardown and targeted destroys: [Command Reference → Cleanup](#cleanup-commands).
+
+---
+
+## Command Reference
+
+Copy-paste commands for day-2 operations. Defaults assume **dev** in `us-east-1` and naming prefix `asset-management-dev-`.
+
+Set helpers once per shell (from project root):
 
 ```bash
-# 1. Empty S3 bucket (required before deletion)
-BUCKET=$(terraform -chdir=infra/terraform/environments/dev output -raw frontend_bucket_name)
-aws s3 rm "s3://${BUCKET}" --recursive
+export AWS_REGION=us-east-1
+export TF_DIR=infra/terraform/environments/dev
+export API_URL=$(terraform -chdir="${TF_DIR}" output -raw api_base_url)
+export BUCKET=$(terraform -chdir="${TF_DIR}" output -raw frontend_bucket_name)
+export API_TOKEN=$(grep '^api_token' "${TF_DIR}/dev.tfvars" 2>/dev/null | sed -n 's/.*= *"\(.*\)".*/\1/p')
+```
 
-# 2. Destroy infrastructure
-cd infra/terraform/environments/dev
+Use `--profile NAME` on any `aws` or `terraform` command for another account.
+
+### One-command deploy
+
+```bash
+./infra/scripts/deploy.sh dev
+```
+
+### Deploy infrastructure
+
+```bash
+./infra/scripts/package_lambda.sh
+
+cd "${TF_DIR}"
+terraform init
+terraform apply -var-file=dev.tfvars
+```
+
+### Deploy and update frontend
+
+```bash
+# From project root (uses API_URL, BUCKET, API_TOKEN from helpers above)
+./infra/scripts/publish_frontend.sh "${API_URL}" "${BUCKET}" "${API_TOKEN}"
+
+# Or manual build + sync
+cd frontend && npm run build && cd ..
+printf 'window.assetManagementConfig = {\n  apiBaseUrl: "%s",\n  apiToken: "%s"\n};\n' "${API_URL}" "${API_TOKEN}" \
+  > frontend/dist/frontend/browser/app-config.js
+aws s3 sync frontend/dist/frontend/browser/ "s3://${BUCKET}/" --delete --region "${AWS_REGION}"
+```
+
+### Get URLs and outputs
+
+```bash
+terraform -chdir="${TF_DIR}" output -raw api_base_url
+terraform -chdir="${TF_DIR}" output -raw frontend_website_url
+terraform -chdir="${TF_DIR}" output
+```
+
+### Update Lambda code
+
+```bash
+./infra/scripts/package_lambda.sh
+cd "${TF_DIR}"
+terraform apply -var-file=dev.tfvars -target=module.backend_lambda
+# Other functions: -target=module.research_agent_lambda or module.sentiment_mcp_lambda
+```
+
+### Logs
+
+```bash
+# Live tail
+aws logs tail /aws/lambda/asset-management-dev-backend --follow --region "${AWS_REGION}"
+aws logs tail /aws/lambda/asset-management-dev-research-agent --follow --region "${AWS_REGION}"
+aws logs tail /aws/lambda/asset-management-dev-sentiment-mcp --follow --region "${AWS_REGION}"
+
+# Last hour
+aws logs tail /aws/lambda/asset-management-dev-backend --since 1h --region "${AWS_REGION}"
+
+# Bedrock traces
+aws logs tail /aws/lambda/asset-management-dev-backend --follow --region "${AWS_REGION}" | grep -i bedrock
+```
+
+### Test API endpoints
+
+```bash
+# Health (no token)
+curl "${API_URL}/health"
+
+# Authenticated /api/* (token from dev.tfvars)
+curl -H "x-api-token: ${API_TOKEN}" "${API_URL}/api/portfolios"
+curl -H "x-api-token: ${API_TOKEN}" "${API_URL}/api/preferences/client_demo"
+
+# Market stream (SSE)
+curl -N -H "x-api-token: ${API_TOKEN}" "${API_URL}/api/market/stream"
+```
+
+### DynamoDB
+
+```bash
+aws dynamodb list-tables --region "${AWS_REGION}" \
+  --query 'TableNames[?contains(@, `asset-management-dev`)]'
+
+aws dynamodb scan --table-name asset-management-dev-portfolios --max-items 5 --region "${AWS_REGION}"
+aws dynamodb scan --table-name asset-management-dev-preferences --max-items 5 --region "${AWS_REGION}"
+
+aws dynamodb get-item \
+  --table-name asset-management-dev-portfolios \
+  --key '{"account_id": {"S": "acct_demo"}}' \
+  --region "${AWS_REGION}"
+
+aws dynamodb delete-item \
+  --table-name asset-management-dev-preferences \
+  --key '{"client_id": {"S": "client_demo"}}' \
+  --region "${AWS_REGION}"
+```
+
+### Lambda
+
+```bash
+aws lambda list-functions --region "${AWS_REGION}" \
+  --query 'Functions[?contains(FunctionName, `asset-management-dev`)].FunctionName'
+
+aws lambda get-function-configuration \
+  --function-name asset-management-dev-backend \
+  --region "${AWS_REGION}"
+
+aws lambda get-function-configuration \
+  --function-name asset-management-dev-backend \
+  --query 'Environment.Variables' \
+  --region "${AWS_REGION}" | grep FEATURE_
+
+aws lambda update-function-configuration \
+  --function-name asset-management-dev-backend \
+  --environment "Variables={SEED_DEFAULT_PORTFOLIOS=false}" \
+  --region "${AWS_REGION}"
+
+aws lambda invoke \
+  --function-name asset-management-dev-backend \
+  --region "${AWS_REGION}" \
+  --payload '{"rawPath": "/health", "requestContext": {"http": {"method": "GET"}}}' \
+  response.json
+cat response.json
+```
+
+Prefer Terraform for durable env changes (see [LLM Features](#llm-features-aws-bedrock)).
+
+### S3
+
+```bash
+aws s3 ls "s3://${BUCKET}/" --region "${AWS_REGION}"
+aws s3 cp "s3://${BUCKET}/app-config.js" - --region "${AWS_REGION}"
+aws s3 sync frontend/dist/frontend/browser/ "s3://${BUCKET}/" --delete --region "${AWS_REGION}"
+aws s3 rm "s3://${BUCKET}" --recursive --region "${AWS_REGION}"
+```
+
+### Cleanup commands
+
+```bash
+# Full teardown
+aws s3 rm "s3://${BUCKET}" --recursive --region "${AWS_REGION}"
+cd "${TF_DIR}"
 terraform destroy -var-file=dev.tfvars
+
+# Verify nothing left
+aws dynamodb list-tables --region "${AWS_REGION}" \
+  --query 'TableNames[?contains(@, `asset-management-dev`)]'
+aws lambda list-functions --region "${AWS_REGION}" \
+  --query 'Functions[?contains(FunctionName, `asset-management-dev`)]'
+
+# Targeted destroy
+cd "${TF_DIR}"
+terraform destroy -var-file=dev.tfvars -target=module.backend_lambda
+terraform destroy -var-file=dev.tfvars -target=aws_dynamodb_table.preferences
 ```
 
-Type `yes` when prompted.
+### Operations troubleshooting
 
-**What gets deleted:**
-- ✅ All DynamoDB tables (data will be lost!)
-- ✅ All Lambda functions
-- ✅ API Gateway
-- ✅ S3 bucket
-- ✅ IAM roles and policies
-- ✅ CloudWatch log groups
-
-**Cleanup verification:**
 ```bash
-# Should return empty or error
-aws dynamodb list-tables --query 'TableNames[?contains(@, `asset-management-dev`)]'
-aws lambda list-functions --query 'Functions[?contains(FunctionName, `asset-management-dev`)]'
+# Recent ERROR lines
+aws logs filter-log-events \
+  --log-group-name /aws/lambda/asset-management-dev-backend \
+  --filter-pattern "ERROR" \
+  --max-items 10 \
+  --region "${AWS_REGION}"
+
+# API Gateway stages
+API_ID=$(aws apigatewayv2 get-apis --region "${AWS_REGION}" \
+  --query 'Items[?Name==`asset-management-dev-api`].ApiId' --output text)
+aws apigatewayv2 get-stages --api-id "${API_ID}" --region "${AWS_REGION}"
+
+# Lambda execution role policies
+aws iam get-role --role-name asset-management-dev-backend-role
+aws iam list-attached-role-policies --role-name asset-management-dev-backend-role
+
+# CORS preflight
+curl -X OPTIONS "${API_URL}/api/portfolios" \
+  -H "Origin: http://localhost:4200" \
+  -H "Access-Control-Request-Method: GET" \
+  -v
 ```
+
+### Metrics
+
+Time range for `get-metric-statistics` (portable):
+
+```bash
+END=$(date -u +%Y-%m-%dT%H:%M:%S)
+START=$(python3 -c "from datetime import datetime, timedelta; print((datetime.utcnow()-timedelta(hours=1)).strftime('%Y-%m-%dT%H:%M:%S'))")
+```
+
+```bash
+# Lambda invocations (last hour)
+aws cloudwatch get-metric-statistics \
+  --namespace AWS/Lambda \
+  --metric-name Invocations \
+  --dimensions Name=FunctionName,Value=asset-management-dev-backend \
+  --start-time "${START}" --end-time "${END}" \
+  --period 300 --statistics Sum --region "${AWS_REGION}"
+
+# Lambda errors
+aws cloudwatch get-metric-statistics \
+  --namespace AWS/Lambda \
+  --metric-name Errors \
+  --dimensions Name=FunctionName,Value=asset-management-dev-backend \
+  --start-time "${START}" --end-time "${END}" \
+  --period 300 --statistics Sum --region "${AWS_REGION}"
+
+# DynamoDB read capacity
+aws cloudwatch get-metric-statistics \
+  --namespace AWS/DynamoDB \
+  --metric-name ConsumedReadCapacityUnits \
+  --dimensions Name=TableName,Value=asset-management-dev-portfolios \
+  --start-time "${START}" --end-time "${END}" \
+  --period 300 --statistics Sum --region "${AWS_REGION}"
+```
+
+### Cost monitoring
+
+```bash
+# Current month by service (requires Cost Explorer API permissions)
+aws ce get-cost-and-usage \
+  --time-period Start=$(date +%Y-%m-01),End=$(date +%Y-%m-%d) \
+  --granularity MONTHLY \
+  --metrics BlendedCost \
+  --group-by Type=SERVICE
+```
+
+See [Cost Estimation](#cost-estimation) for typical dev/prod ranges.
+
+### AWS CLI tips
+
+- `--profile prod` — alternate account
+- `--region us-west-2` — override region
+- `--output json | jq` — parse JSON output
+- `--query 'Items[0].Name'` — JMESPath filter
+- `--dry-run` — validate without executing (where supported)
 
 ---
 
@@ -773,15 +1155,18 @@ cp -r infra/terraform/environments/dev infra/terraform/environments/prod
 
 ## Support
 
-### Documentation
+### Project documentation
+- [STARTUP_GUIDE.md](STARTUP_GUIDE.md) — local setup, LLMs, validation, troubleshooting
+
+### AWS documentation
 - [Terraform AWS Provider](https://registry.terraform.io/providers/hashicorp/aws/latest/docs)
 - [AWS Lambda Developer Guide](https://docs.aws.amazon.com/lambda/)
 - [API Gateway Developer Guide](https://docs.aws.amazon.com/apigateway/)
 
-### Logs and Monitoring
+### Logs and monitoring
+- [Command Reference](#command-reference) — CLI for logs, metrics, and costs
 - CloudWatch Logs: AWS Console → CloudWatch → Log groups
-- Lambda Metrics: AWS Console → Lambda → Functions → Monitoring
-- API Gateway Metrics: AWS Console → API Gateway → APIs → Monitoring
+- Lambda metrics: AWS Console → Lambda → Functions → Monitoring
 
 ### Getting Help
 - Check CloudWatch Logs for errors
@@ -796,18 +1181,18 @@ cp -r infra/terraform/environments/dev infra/terraform/environments/prod
 You've successfully deployed the Asset Management Multi-Agent Platform to AWS! 🎉
 
 **What you deployed:**
-- ✅ 3 Lambda functions (Backend, Research Agent, Sentiment MCP)
-- ✅ 6 DynamoDB tables (Approvals, Audit Events, Portfolios, Sessions, Memory Queue, Preferences)
-- ✅ 1 API Gateway (HTTP API)
-- ✅ 1 S3 bucket (Static website hosting)
-- ✅ CloudWatch Logs (Monitoring)
+- 3 Lambda functions (Backend, Research Agent, Sentiment MCP) with optional Bedrock IAM
+- 6 DynamoDB tables (Approvals, Audit Events, Portfolios, Sessions, Memory Queue, Preferences)
+- 1 API Gateway (HTTP API)
+- 1 S3 bucket (static website hosting)
+- CloudWatch Logs (monitoring)
+- Optional: LLM agents via Amazon Bedrock (see [LLM Features](#llm-features-aws-bedrock))
 
 **Next steps:**
-1. Open your frontend URL
-2. Test the rebalancing workflow
-3. Configure user preferences
-4. Monitor CloudWatch Logs
+1. Open your frontend URL (`terraform output frontend_website_url`)
+2. Run health check and UI verification steps above
+3. Bookmark [Command Reference](#command-reference) for redeploys and ops
+4. Monitor CloudWatch Logs and Bedrock usage if LLMs are enabled
 5. Set up custom domain (optional)
-6. Enable Bedrock for LLM features (optional)
 
-**Estimated monthly cost:** ~$2-5 for development, ~$150-200 for production
+**Estimated monthly cost:** ~$2–5 without Bedrock; ~$5–15 with LLMs in dev; ~$150–200+ for production (higher if Bedrock volume grows)
