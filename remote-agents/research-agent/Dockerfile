@@ -17,6 +17,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application code
 COPY remote-agents/research-agent/main.py .
+COPY prompts ./prompts
 
 # Expose port
 EXPOSE 8101

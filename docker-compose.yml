@@ -11,6 +11,7 @@ services:
     volumes:
       - ~/.aws:/root/.aws:ro
     environment:
+      - PORT=8000
       - PERSISTENCE_MODE=local
       - DYNAMODB_ENDPOINT_URL=http://dynamodb:8000
       - AWS_REGION=us-east-2

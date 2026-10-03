@@ -12,6 +12,7 @@ RUN pip install --no-cache-dir uv
 
 # Copy project files
 COPY backend . 
+COPY prompts ./prompts
 
 # Install dependencies using uv
 RUN uv pip install --system -e . --no-cache
