@@ -21,11 +21,12 @@ Paths are relative to the repo root. "New" means the file doesn't exist yet.
 - **Deps:** P0-01 · **Accept:** failure points documented (D1/D2 confirmed or refuted).
 - **Test:** this test · **Effort:** S
 
-### P0-03 Spike: custom-template LangGraph on Agent Runtime
+### P0-03 Spike: custom-template LangGraph on Agent Runtime [COMPLETED]
 - **Goal:** Confirm we can deploy an existing `StateGraph` with the custom template.
-- **Files:** new `spikes/agent_runtime_hello/` (deleted after Phase 1)
+- **Files:** `spikes/agent_runtime_hello/` (agent.py, deploy.py, query_remote.py, test_local.py, README.md)
 - **Scope:** Write a class with `set_up()` that compiles a two-node `StateGraph` and `query()` that calls `ainvoke`/`invoke`. Deploy with the Agent Platform SDK, then query it. Record the SDK version and the deploy call actually used.
 - **Deps:** project/APIs · **Accept:** a remote `query()` returns the graph output.
+- **Status:** **PASSED** (2026-10-03). Deployed to `projects/754915077075/locations/us-central1/reasoningEngines/6104962996679737344`. SDK: `google-cloud-aiplatform==2.3.0` (`agentplatform.Client`). Successfully queried remotely with `status: SUCCESS` and verified state transitions. State schema must be defined inside `set_up()` to preserve PEP 649 deferred annotations on Linux container; `query()` requires explicit parameter types.
 - **Test:** manual script · **Effort:** M
 
 ### P0-04 Spike: Sessions + Memory Bank via API, and region choice
