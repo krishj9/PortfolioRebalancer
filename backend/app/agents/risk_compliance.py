@@ -110,8 +110,8 @@ class RiskComplianceAgent:
             logger.error(f"Risk & Compliance Agent failed: {e}", exc_info=True)
             return failed_stage(self.name, f"Policy evaluation failed: {str(e)}"), RiskPolicyResponse(
                 verdict=PolicyVerdictStatus.UNRESOLVED,
-                blockers=[],
-                warnings=[],
+                drift=drift,
+                rule_results=[{"rule_id": "policy_evaluation_error", "passed": False, "message": str(e)}],
             )
 
     async def _generate_llm_analysis(
@@ -160,28 +160,40 @@ class RiskComplianceAgent:
             Dictionary with verdict explanation
         """
         try:
+            # Build policy rules from rule_results (with fallback to blockers/warnings)
+            policy_rules = []
+            if getattr(policy_result, "rule_results", None):
+                for i, rule in enumerate(policy_result.rule_results):
+                    passed = rule.get("passed", False)
+                    msg = str(rule.get("message", ""))
+                    policy_rules.append({
+                        "rule_id": str(rule.get("rule_id", f"RULE-{i}")),
+                        "description": msg,
+                        "result": "PASS" if passed else "FAIL",
+                        "details": msg,
+                    })
+            else:
+                for i, blocker in enumerate(getattr(policy_result, "blockers", [])):
+                    policy_rules.append({
+                        "rule_id": f"RULE-{i}",
+                        "description": str(blocker),
+                        "result": "FAIL",
+                        "details": str(blocker),
+                    })
+                for i, warning in enumerate(getattr(policy_result, "warnings", [])):
+                    policy_rules.append({
+                        "rule_id": f"WARN-{i}",
+                        "description": str(warning),
+                        "result": "PASS",
+                        "details": str(warning),
+                    })
+
             # Prepare template inputs
             template_inputs = {
                 "portfolio_id": getattr(snapshot, "portfolio_id", getattr(snapshot, "account_id", snapshot.snapshot_id)),
                 "risk_tolerance": getattr(risk_profile, "risk_level", getattr(risk_profile, "risk_tolerance", "MODERATE")) if risk_profile else "MODERATE",
-                "verdict_status": policy_result.verdict.value,
-                "policy_rules": [
-                    {
-                        "rule_id": f"RULE-{i}",
-                        "description": blocker,
-                        "result": "FAIL",
-                        "details": blocker,
-                    }
-                    for i, blocker in enumerate(getattr(policy_result, "blockers", []))
-                ] + [
-                    {
-                        "rule_id": f"WARN-{i}",
-                        "description": warning,
-                        "result": "PASS",
-                        "details": warning,
-                    }
-                    for i, warning in enumerate(getattr(policy_result, "warnings", []))
-                ],
+                "verdict_status": policy_result.verdict.value if hasattr(policy_result.verdict, "value") else str(policy_result.verdict),
+                "policy_rules": policy_rules,
                 "proposed_trades": [],  # TODO: Get from rebalancing proposal
             }
             
@@ -248,21 +260,34 @@ class RiskComplianceAgent:
         try:
             if not verdict_explanation:
                 return None
-            
+
+            # Build violations from failed rule_results (with fallback to blockers)
+            violations = []
+            if getattr(policy_result, "rule_results", None):
+                for i, rule in enumerate(policy_result.rule_results):
+                    if not rule.get("passed", False):
+                        violations.append({
+                            "rule_id": str(rule.get("rule_id", f"RULE-{i}")),
+                            "description": str(rule.get("message", "")),
+                            "current_value": "Unknown",
+                            "limit": "Unknown",
+                            "excess": "Unknown",
+                        })
+            if not violations:
+                for i, blocker in enumerate(getattr(policy_result, "blockers", [])):
+                    violations.append({
+                        "rule_id": f"RULE-{i}",
+                        "description": str(blocker),
+                        "current_value": "Unknown",
+                        "limit": "Unknown",
+                        "excess": "Unknown",
+                    })
+
             # Prepare template inputs
             template_inputs = {
                 "portfolio_id": getattr(snapshot, "portfolio_id", getattr(snapshot, "account_id", snapshot.snapshot_id)),
                 "portfolio_value": float(snapshot.total_value),
-                "violations": [
-                    {
-                        "rule_id": f"RULE-{i}",
-                        "description": blocker,
-                        "current_value": "Unknown",
-                        "limit": "Unknown",
-                        "excess": "Unknown",
-                    }
-                    for i, blocker in enumerate(getattr(policy_result, "blockers", []))
-                ],
+                "violations": violations,
                 "holdings": [
                     {
                         "symbol": holding.symbol,
