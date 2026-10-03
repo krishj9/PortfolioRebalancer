@@ -10,4 +10,8 @@ def get_workflow_store() -> WorkflowStore:
     settings = get_settings()
     if settings.persistence_mode == "memory":
         return InMemoryWorkflowStore()
+    if settings.persistence_mode == "firestore":
+        from app.persistence.firestore_store import FirestoreWorkflowStore
+
+        return FirestoreWorkflowStore(settings)
     return DynamoDBWorkflowStore(settings)

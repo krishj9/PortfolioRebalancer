@@ -182,12 +182,19 @@ class Settings(BaseSettings):
         """Backwards-compatibility property for dynamodb_mode."""
         return self.persistence_mode
 
-    # Table names
+    # Table names (DynamoDB)
     approvals_table_name: str = "asset-management-dev-approvals"
     audit_events_table_name: str = "asset-management-dev-audit-events"
     portfolios_table_name: str = "asset-management-dev-portfolios"
     sessions_table_name: str = "asset-management-dev-sessions"
     memory_queue_table_name: str = "asset-management-dev-memory-queue"
+
+    # Firestore configuration (GCP)
+    firestore_project_id: str | None = Field(default="mybrightday-dev", description="GCP project for Firestore")
+    firestore_database: str = Field(default="portfolio-rebalancer", description="Firestore database name")
+    portfolios_collection: str = Field(default="portfolios", description="Firestore collection for portfolios")
+    approvals_collection: str = Field(default="approvals", description="Firestore collection for approvals")
+    audit_events_collection: str = Field(default="audit_events", description="Firestore collection for audit events")
 
     # Remote agents
     research_agent_url: str = "http://localhost:8101/a2a/research"

@@ -1,6 +1,6 @@
 from datetime import UTC, datetime
 from decimal import Decimal
-from typing import Protocol
+from typing import Protocol, runtime_checkable
 
 from app.contracts.analysis import (
     ApprovalAction,
@@ -21,6 +21,7 @@ from app.contracts.domain import (
 )
 
 
+@runtime_checkable
 class WorkflowStore(Protocol):
     def save_portfolio(self, portfolio: PortfolioRecord) -> PortfolioRecord: ...
 

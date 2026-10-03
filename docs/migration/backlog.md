@@ -81,12 +81,13 @@ Paths are relative to the repo root. "New" means the file doesn't exist yet.
 - **Status:** **PASSED** (2026-10-03). Implemented `GeminiModelAdapter` via `google-genai` SDK on Vertex AI (`us-central1`), `model_factory.py` with provider selection (`LLM_PROVIDER=gemini|bedrock`), model resolution with Claude fallback, and configured `thinking_budget=0` for deterministic max token preservation. Verified live streaming and token usage on Vertex AI project `mybrightday-dev` for `/api/recommendations/{id}/explain`. Unit test suite with 8 tests passed in `test_gemini_adapter.py`.
 - **Test:** mocked unit test + manual · **Effort:** M
 
-### P1-04 Firestore WorkflowStore
+### P1-04 Firestore WorkflowStore [COMPLETED]
 - **Goal:** Persist operational records in Firestore.
 - **Files:** new `backend/app/persistence/firestore_store.py`, `backend/app/persistence/dependencies.py`, `backend/app/core/config.py`, `backend/pyproject.toml` (`google-cloud-firestore`)
 - **Scope:** Implement the full `WorkflowStore` protocol (including `list_approvals` and `list_audit_events`) with collections `portfolios`, `approvals`, `audit_events`. Reuse `to_jsonable` from `dynamodb_store.py`. Run `update_approval` in a transaction. Select with `PERSISTENCE_MODE=firestore`.
-- **Deps:** P0-01 · **Accept:** existing route tests pass against the Firestore emulator.
-- **Test:** `test_rebalance.py` parameterized over the in-memory and emulator stores · **Effort:** L
+- **Deps:** P0-01 · **Accept:** existing route tests pass against Firestore.
+- **Status:** **PASSED** (2026-10-03). Provisioned dedicated Firestore Native database `portfolio-rebalancer` in `us-central1` on project `mybrightday-dev`. Implemented `FirestoreWorkflowStore` with transactional `update_approval`, collection management (`portfolios`, `approvals`, `audit_events`), and default portfolio seeding. Added `PERSISTENCE_MODE=firestore` to `dependencies.py` and `Settings`. All 6 unit and live integration tests passed in `test_firestore_store.py`.
+- **Test:** `backend/tests/test_firestore_store.py` (unit + live integration) · **Effort:** L
 
 ### P1-05 Tool service router
 - **Goal:** Expose the deterministic tools over authenticated HTTP.
