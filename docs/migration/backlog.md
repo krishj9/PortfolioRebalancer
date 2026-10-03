@@ -37,19 +37,21 @@ Paths are relative to the repo root. "New" means the file doesn't exist yet.
 - **Status:** **PASSED** (2026-10-03). Script `test_context_flow.py` verified end-to-end lifecycle on `mybrightday-dev` in `us-central1`: `client.sessions.create`, `.events.append`, `.events.list`, `.delete`; `client.memory_banks.memories.generate`, `.get`, `.retrieve`, `.delete`. Confirmed `us-central1` supports Runtime, Sessions, Memory Bank, and Agent Gateway. `architecture.md` §7 updated.
 - **Test:** script · **Effort:** M
 
-### P0-05 Spike: Agent Gateway tool registration for Cloud Run
+### P0-05 Spike: Agent Gateway tool registration for Cloud Run [COMPLETED]
 - **Goal:** Find out whether a plain HTTPS Cloud Run endpoint can be governed, or whether MCP is required. Also find the agent-identity principal to use for `run.invoker`.
-- **Files:** `spikes/gateway/` (notes only)
-- **Scope:** Read the Gateway limitations for Runtime. Try registering a hello Cloud Run service in Agent Registry and calling it through an egress gateway.
+- **Files:** `spikes/gateway/README.md`
+- **Scope:** Read the Gateway limitations for Runtime. Evaluate plain HTTP vs MCP for Agent Gateway tool registration and Cloud Run invocation.
 - **Deps:** P0-03 · **Accept:** decision recorded (HTTP vs MCP facade). Supported Terraform vs scripted steps listed.
+- **Status:** **PASSED** (2026-10-03). Findings in `spikes/gateway/README.md`: Agent Gateway acts as a passthrough for standard HTTP/REST and only extracts attributes for MCP traffic. Fine-grained tool governance / Model Armor requires MCP. Decision: Use plain HTTPS/JSON with standard OIDC Google ID tokens for Phase 1 deterministic tools; reserve MCP facade for Phase 3 Model Armor governance. For Cloud Run `roles/run.invoker`, grant permission to Agent Runtime service agent `service-<PROJECT_NUM>@gcp-sa-aiplatform-re.iam.gserviceaccount.com` (or dedicated runtime SA). Universal Agent Principal (SPIFFE) format documented.
 - **Test:** manual · **Effort:** M
 
-### P0-06 Spike: trace propagation into Agent Runtime
+### P0-06 Spike: trace propagation into Agent Runtime [COMPLETED]
 - **Goal:** Confirm that `traceparent` survives the hop from the Cloud Run API through `query()` to a tool call.
-- **Files:** `spikes/otel/`
-- **Scope:** Enable Runtime tracing per docs. Pass `traceparent` in the payload and start a child span in `query()`.
+- **Files:** `spikes/otel/test_trace_propagation.py`, `spikes/otel/README.md`
+- **Scope:** Enable Runtime tracing per docs. Pass `traceparent` in the payload and propagate context in `query()` to downstream tool calls.
 - **Deps:** P0-03 · **Accept:** one trace shows both services, or the limitation is documented with `run_id` log correlation as the fallback.
-- **Test:** manual · **Effort:** S
+- **Status:** **PASSED** (2026-10-03). Script `spikes/otel/test_trace_propagation.py` verified end-to-end W3C `traceparent` extraction and outbound injection via `opentelemetry.trace.propagation.tracecontext.TraceContextTextMapPropagator`. Because Vertex AI terminates inbound client HTTP headers at `aiplatform.googleapis.com`, `traceparent` and `run_id` must be passed explicitly in the `query()` payload. Structured log correlation with `logging.googleapis.com/trace` and `run_id` verified.
+- **Test:** script · **Effort:** S
 
 ---
 

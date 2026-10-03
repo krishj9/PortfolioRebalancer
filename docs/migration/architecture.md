@@ -142,8 +142,10 @@ VERIFIED in Phase 0 spikes:
 - `us-central1` supports Agent Runtime, Sessions API, Memory Bank, and Agent Gateway (`networkservices.googleapis.com`).
 - Direct API method names: `client.sessions.create`, `client.sessions.events.append`, `client.sessions.events.list`, `client.sessions.delete`; `client.memory_banks.memories.generate`, `.get`, `.retrieve`, `.delete`.
 - LangGraph custom-template deployment: `client.runtimes.create`, `client.runtimes.update`; state schema must be declared in `set_up()` for Python 3.14 deferred annotation evaluation; `query()` requires typed parameters.
+- Agent Gateway & Tool Protocol [P0-05]: Agent Gateway passes through HTTP/REST but extracts attributes exclusively for MCP traffic; Model Armor/fine-grained tool governance requires MCP; Phase 1 uses direct authenticated Cloud Run HTTPS with OIDC ID tokens; Cloud Run `roles/run.invoker` granted to runtime service agent `service-<PROJECT_NUM>@gcp-sa-aiplatform-re.iam.gserviceaccount.com`. Universal Agent Principal SPIFFE format verified.
+- Trace & Context Propagation [P0-06]: W3C `traceparent` and `run_id` passed explicitly in the `query()` payload; context extracted/injected using `TraceContextTextMapPropagator` for downstream tool calls; structured logs correlate via `logging.googleapis.com/trace` and `run_id`.
 
-Remaining UNVERIFIED items (each has a Phase 0/3 task): Gateway support for non-MCP Cloud Run endpoints [P0-05]; agent-identity principal for `run.invoker` [P0-05]; Terraform for Gateway/Registry/Model Armor template [P3-02]; trace propagation into Runtime [P0-06]; PSC→internal Cloud Run routing [P3-03].
+Remaining UNVERIFIED items (each has a Phase 3 task): Terraform for Gateway/Registry/Model Armor template [P3-02]; PSC→internal Cloud Run routing [P3-03].
 
 ## 8. Deployment, rollback, teardown (summary)
 
