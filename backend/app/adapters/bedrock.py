@@ -300,6 +300,8 @@ class BedrockModelAdapter:
                 response_body = json.loads(response.get("body").read())
                 return response_body
 
+            except (asyncio.TimeoutError, TimeoutError):
+                raise
             except Exception as e:
                 last_exception = e
                 error_type = type(e).__name__
@@ -422,12 +424,20 @@ class BedrockModelAdapter:
             + (results[0].get("tokenCount", 0) if results else 0),
         )
 
+        titan_reason = results[0].get("completionReason", "FINISH") if results else "FINISH"
+        if titan_reason == "LENGTH":
+            finish_reason = "length"
+        elif titan_reason in ("CONTENT_FILTERED", "CONTENT_FILTER"):
+            finish_reason = "content_filter"
+        else:
+            finish_reason = "stop"
+
         return ModelResponse(
             content=content,
             model_id=model_id,
             usage=token_usage,
             latency_ms=latency_ms,
-            finish_reason=results[0].get("completionReason", "FINISH") if results else "FINISH",
+            finish_reason=finish_reason,
             metadata=metadata,
         )
 

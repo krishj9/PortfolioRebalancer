@@ -67,6 +67,9 @@ def route_after_risk_policy(
         logger.warning(
             f"Policy verdict {verdict} blocks trade proposal for {state['request_id']}"
         )
+        state["workflow_state"] = WorkflowState.BLOCKED
+        from app.services.langgraph_state import add_blocker
+        add_blocker(state, f"Policy verdict: {verdict.value}")
         # Skip trade proposal generation
         return "assemble_recommendation"
 

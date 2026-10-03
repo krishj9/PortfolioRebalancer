@@ -41,7 +41,7 @@ def test_property_1_conditional_routing_blocks_on_non_compliant(verdict):
         environment="test",
         trace_provider="bedrock_agentcore",
         risk_policy_output=RiskPolicyResponse(
-            verdict=verdict, evidence=[], confidence=0.9, explanation="Test"
+            verdict=verdict, drift=[]
         ),
         workflow_state=WorkflowState.NORMAL,
         blockers=[],
@@ -81,7 +81,7 @@ def test_property_1_conditional_routing_allows_compliant(verdict):
         environment="test",
         trace_provider="bedrock_agentcore",
         risk_policy_output=RiskPolicyResponse(
-            verdict=verdict, evidence=[], confidence=0.9, explanation="Test"
+            verdict=verdict, drift=[]
         ),
         workflow_state=WorkflowState.NORMAL,
         blockers=[],

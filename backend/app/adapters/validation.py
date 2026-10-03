@@ -100,7 +100,7 @@ class ResponseValidator:
 
         # Confidence validation
         confidence = self._extract_confidence(response.content)
-        if confidence and confidence < confidence_threshold:
+        if confidence is not None and confidence < confidence_threshold:
             violations.append(
                 {
                     "type": "confidence",
@@ -251,7 +251,7 @@ class ResponseValidator:
         # Try to find confidence in JSON
         try:
             content_json = json.loads(content)
-            if "confidence" in content_json:
+            if isinstance(content_json, dict) and "confidence" in content_json:
                 conf = content_json["confidence"]
                 if isinstance(conf, (int, float)):
                     return float(conf)
@@ -263,7 +263,7 @@ class ResponseValidator:
                         return 0.7
                     elif conf_upper == "LOW":
                         return 0.5
-        except (json.JSONDecodeError, KeyError):
+        except (json.JSONDecodeError, KeyError, TypeError, AttributeError):
             pass
 
         # Try to find confidence in text

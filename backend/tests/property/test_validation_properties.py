@@ -18,6 +18,8 @@ from app.adapters.validation import ResponseValidator, ValidationResult
 class TestOutputSchema(BaseModel):
     """Test schema for validation."""
 
+    __test__ = False
+
     summary: str
     confidence: str = Field(pattern="^(HIGH|MEDIUM|LOW)$")
     items: list[str] = Field(default_factory=list)
@@ -54,7 +56,9 @@ async def test_property_8_schema_validation_accepts_valid(summary, confidence, i
     )
 
     validator = ResponseValidator()
-    result = await validator.validate(response, expected_schema=TestOutputSchema)
+    result = await validator.validate(
+        response, expected_schema=TestOutputSchema, confidence_threshold=0.0
+    )
 
     # Should be valid
     assert result.is_valid

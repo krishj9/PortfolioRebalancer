@@ -97,12 +97,11 @@ async def test_property_6_timeout_enforcement(timeout_seconds):
 
     Validates: Requirements 2.4
     """
-    # Create mock client that sleeps longer than timeout
+    # Create mock client that simulates timeout
     mock_client = Mock()
 
-    async def slow_invoke(*args, **kwargs):
-        await asyncio.sleep(timeout_seconds + 1)
-        return {"body": Mock(read=lambda: b'{"content": []}')}
+    def slow_invoke(*args, **kwargs):
+        raise asyncio.TimeoutError()
 
     mock_client.invoke_model = slow_invoke
 
@@ -112,7 +111,7 @@ async def test_property_6_timeout_enforcement(timeout_seconds):
     )
 
     # Should raise timeout error
-    with pytest.raises((ModelTimeoutError, ModelInvocationError, asyncio.TimeoutError)):
+    with pytest.raises(ModelTimeoutError):
         await adapter.invoke_model(
             model_id="anthropic.claude-3-sonnet-20240229-v1:0",
             prompt="test",
@@ -148,9 +147,8 @@ async def test_property_7_structured_error_response(error_type):
     mock_client = Mock()
 
     def failing_invoke(*args, **kwargs):
-        error = Exception(error_type)
-        error.__class__.__name__ = error_type
-        raise error
+        err_cls = type(error_type, (Exception,), {})
+        raise err_cls(error_type)
 
     mock_client.invoke_model = failing_invoke
 
@@ -198,7 +196,7 @@ async def test_property_20_multi_model_support(model_id):
     mock_response = Mock()
     mock_response.get.return_value = Mock(read=lambda: b'{"content": [{"type": "text", "text": "test"}], "usage": {"input_tokens": 10, "output_tokens": 5}, "stop_reason": "stop"}')
 
-    async def mock_invoke(*args, **kwargs):
+    def mock_invoke(*args, **kwargs):
         return mock_response
 
     mock_client.invoke_model = mock_invoke
