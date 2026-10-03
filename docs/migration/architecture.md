@@ -209,6 +209,33 @@ ORDER BY
   max_drift_pct DESC;
 ```
 
+### 6.2 Cloud Logging Saved Queries (Log Explorer)
+
+```text
+-- Query 4: End-to-end trace correlation across API, Runtime, and Tools
+-- Replace TRACE_ID with the 32-character hexadecimal trace ID
+resource.type="cloud_run_revision"
+(logging.googleapis.com/trace="projects/mybrightday-dev/traces/TRACE_ID" OR jsonPayload.run_id="RUN_ID" OR jsonPayload.traceparent=~"TRACE_ID")
+```
+
+```text
+-- Query 5: Model Armor Content Safety and Prompt Injection Incidents
+resource.type="cloud_run_revision"
+(jsonPayload.event_type="CONTENT_BLOCKED" OR jsonPayload.guardrail_result.action="BLOCKED" OR textPayload=~"CONTENT_BLOCKED|prompt injection")
+```
+
+```text
+-- Query 6: Unauthorized Tool Invocations and Direct Bypass Attempts
+resource.type="cloud_run_revision"
+(jsonPayload.event_type="TOOL_DENIED" OR (httpRequest.status=403 AND httpRequest.requestUrl=~"/tools/") OR textPayload=~"TOOL_DENIED|Forbidden")
+```
+
+```text
+-- Query 7: Agent Runtime 502 / 503 Execution Failure Triage
+resource.type="cloud_run_revision"
+(severity>=ERROR AND (jsonPayload.code="AGENT_RUNTIME_EXECUTION_FAILED" OR httpRequest.status>=500 OR textPayload=~"Agent Runtime failed"))
+```
+
 ## 7. Official documentation references (checked 2026-10-03)
 
 | Claim | URL |
@@ -234,9 +261,152 @@ VERIFIED in Phase 0 spikes:
 
 Remaining UNVERIFIED items (each has a Phase 3 task): Terraform for Gateway/Registry/Model Armor template [P3-02]; PSC→internal Cloud Run routing [P3-03].
 
-## 8. Deployment, rollback, teardown (summary)
+## 8. Operational Runbook: Deploy, Troubleshoot, Rollback, and Teardown
 
-- **Build/deploy**: `infra/gcp/scripts/deploy.sh` → run tests → `gcloud builds submit` image to Artifact Registry → `terraform apply` (Cloud Run revisions pinned by image digest) → `python -m app.agent_runtime.deploy` (create/update Runtime) → publish frontend to bucket with `app-config.js`.
-- **Rollback**: Cloud Run `gcloud run services update-traffic --to-revisions=PREV=100`; Agent Runtime: redeploy previous tagged package (`AGENT_RUNTIME_RESOURCE` kept in config; update in place); Firestore data unaffected.
-- **Teardown**: delete Runtime (SDK/console) → `terraform destroy` → delete Artifact Registry images and BigQuery dataset if not in state; or delete the POC project.
-- **Budget**: `google_billing_budget` alert at 50/90/100% of a small monthly amount.
+### 8.1 Step-by-Step Deployment Procedure
+
+Follow these commands to deploy or update the Portfolio Rebalancer GCP environment:
+
+#### Step 1: Pre-deployment Validation
+Run the validated minimum test suite locally or in CI:
+```bash
+./infra/gcp/scripts/run_poc_tests.sh
+```
+
+#### Step 2: Terraform Infrastructure Provisioning
+Deploy VPC, Cloud Armor, Firestore, BigQuery, IAM service accounts, and monitoring resources:
+```bash
+cd infra/gcp/terraform
+terraform init
+terraform plan -out=tfplan
+terraform apply tfplan
+cd ../../..
+```
+
+#### Step 3: Agent Gateway and Model Armor Setup
+Configure network services, MCP extensions, and content safety templates:
+```bash
+./infra/gcp/scripts/gateway_setup.sh
+```
+
+#### Step 4: Container Build & Cloud Run Service Deployment
+Submit container build to Artifact Registry and deploy services:
+```bash
+# Set project and region
+export PROJECT_ID="mybrightday-dev"
+export REGION="us-central1"
+
+# Submit build via Cloud Build
+gcloud builds submit --config=cloudbuild.yaml --project="${PROJECT_ID}"
+```
+
+#### Step 5: Vertex AI Agent Runtime Deployment
+Deploy or update the LangGraph orchestration runtime:
+```bash
+# Ensure authenticated with application default credentials
+gcloud auth application-default login
+
+# Deploy custom runtime template
+python -m backend.app.agent_runtime.deploy \
+  --project="${PROJECT_ID}" \
+  --location="${REGION}" \
+  --display-name="portfolio-rebalancer-runtime" \
+  --tool-mode="remote" \
+  --tools-url="$(gcloud run services describe rebalancer-tools --region=${REGION} --format='value(status.url)')"
+```
+
+#### Step 6: Frontend Distribution to Cloud Storage & CDN
+Deploy web assets and inject backend runtime configuration:
+```bash
+./infra/gcp/scripts/publish_frontend.sh
+```
+
+---
+
+### 8.2 Top 5 Troubleshooting Scenarios
+
+| # | Scenario / Symptom | Likely Root Cause | Diagnostic Command | Remediation Step |
+|---|---|---|---|---|
+| **1** | **HTTP 502 / Agent Runtime Timeout**<br>API returns `AGENT_RUNTIME_EXECUTION_FAILED`. | Vertex AI Agent Runtime container startup latency, network egress PSC misconfiguration, or unhandled exception in LangGraph workflow. | `gcloud logging read 'resource.type="cloud_run_revision" (jsonPayload.code="AGENT_RUNTIME_EXECUTION_FAILED" OR severity>=ERROR)' --project=mybrightday-dev --limit=20 --format="json"` | 1. Check Agent Runtime logs in Google Cloud Console under Vertex AI Reasoning Engines.<br>2. Retry request using same `Idempotency-Key` header.<br>3. Verify tool connectivity via VPC connector. |
+| **2** | **HTTP 403 / Tool Denial**<br>Caller rejected with `Caller is not authorized to invoke deterministic tools`. | Service Account identity mismatch or missing `X-Caller-Identity` header when `TOOLS_CALLER_CHECK=enforce`. | `gcloud logging read 'jsonPayload.event_type="TOOL_DENIED" OR (httpRequest.status=403 AND httpRequest.requestUrl=~"/tools/")' --project=mybrightday-dev --limit=10` | 1. Verify `sa-runtime@mybrightday-dev.iam.gserviceaccount.com` is in `ALLOWED_TOOL_CALLERS`.<br>2. Ensure Cloud Run service account has `roles/run.invoker` on `rebalancer-tools`. |
+| **3** | **CONTENT_BLOCKED / Guardrail False Positive**<br>Request blocked with `potential prompt injection or unsafe content detected`. | User input constraints or notes triggered Model Armor keyword or jailbreak screening pattern. | `gcloud logging read 'jsonPayload.event_type="CONTENT_BLOCKED" OR jsonPayload.guardrail_result.action="BLOCKED"' --project=mybrightday-dev --limit=10` | 1. Inspect blocked text payload in Cloud Logging.<br>2. Adjust Model Armor filter sensitivity in `gateway_setup.sh` or tune keyword list in `apply_output_guardrails`. |
+| **4** | **Firestore / BigQuery IAM Permission Denied**<br>Storage writes fail with `google.api_core.exceptions.PermissionDenied: 403`. | Cloud Run service account missing `roles/datastore.user` or `roles/bigquery.dataEditor`. | `gcloud logging read 'textPayload=~"PermissionDenied|403 Forbidden"' --project=mybrightday-dev --limit=10` | Re-run Terraform IAM module: `cd infra/gcp/terraform && terraform apply -target=google_project_iam_member.sa_api_roles` |
+| **5** | **Cloud Armor Edge WAF 403 Forbidden**<br>Legitimate frontend API requests blocked before reaching Cloud Run. | Cloud Armor WAF rule (SQLi / XSS / remote code execution) triggered by JSON symbols or query parameters. | `gcloud compute security-policies describe rebalancer-edge-waf --project=mybrightday-dev` | 1. Check Cloud Armor logs in Cloud Logging (`jsonPayload.enforcedSecurityPolicy.name="rebalancer-edge-waf"`).<br>2. Tune CRS sensitivity levels or add specific exemption path rules in `edge.tf`. |
+
+---
+
+### 8.3 Rollback Rehearsal & Canary Traffic Management
+
+In the event of an issue following a production or staging release:
+
+#### Cloud Run Immediate Traffic Rollback
+Revert traffic instantly to the previous stable revision without redeployment:
+```bash
+# List available revisions
+gcloud run revisions list --service=rebalancer-api --region=us-central1 --project=mybrightday-dev
+
+# Revert 100% of traffic to previous known healthy revision
+PREV_REVISION="rebalancer-api-00012-abc"
+gcloud run services update-traffic rebalancer-api \
+  --to-revisions="${PREV_REVISION}=100" \
+  --region=us-central1 \
+  --project=mybrightday-dev
+```
+
+#### Gradual Canary Traffic Splitting
+For phased rollouts of new container builds:
+```bash
+# Split traffic 90% stable, 10% canary
+NEW_REVISION="rebalancer-api-00013-def"
+gcloud run services update-traffic rebalancer-api \
+  --to-revisions="${PREV_REVISION}=90,${NEW_REVISION}=10" \
+  --region=us-central1 \
+  --project=mybrightday-dev
+```
+
+#### Agent Runtime Version Rollback
+Update the deployed runtime pointer in configuration to the previous Reasoning Engine resource ID:
+```bash
+# Set AGENT_RUNTIME_RESOURCE_NAME to previous stable resource in Cloud Run env
+gcloud run services update rebalancer-api \
+  --update-env-vars=AGENT_RUNTIME_RESOURCE_NAME=projects/754915077075/locations/us-central1/reasoningEngines/PREVIOUS_ENGINE_ID \
+  --region=us-central1 \
+  --project=mybrightday-dev
+```
+
+#### Database Data Safety
+- Firestore collections (`approvals`, `audit_events`, `portfolios`) and BigQuery analytics tables are strictly additive/append-only.
+- Rolling back application containers or Agent Runtime revisions does not require data schema migration or rollbacks.
+
+---
+
+### 8.4 Full Teardown & Decommissioning Procedure
+
+When decommissioning the POC or tearing down transient testing environments:
+
+```bash
+export PROJECT_ID="mybrightday-dev"
+export REGION="us-central1"
+
+# 1. Delete Vertex AI Agent Runtime Reasoning Engine instances
+gcloud ai reasoning-engines list --region="${REGION}" --project="${PROJECT_ID}" --format="value(name)" | while read -r name; do
+  echo "Deleting Reasoning Engine: ${name}"
+  gcloud ai reasoning-engines delete "${name}" --region="${REGION}" --project="${PROJECT_ID}" --quiet
+done
+
+# 2. Delete Cloud Storage Frontend Bucket objects
+gsutil -m rm -rf "gs://${PROJECT_ID}-portfolio-rebalancer-frontend/**" || true
+
+# 3. Destroy Terraform-managed infrastructure
+cd infra/gcp/terraform
+terraform destroy -auto-approve
+cd ../../..
+
+# 4. Clean up Artifact Registry container images
+gcloud artifacts docker images list "${REGION}-docker.pkg.dev/${PROJECT_ID}/portfolio-rebalancer/backend" --format="value(IMAGE)" | while read -r img; do
+  gcloud artifacts docker images delete "${img}" --quiet || true
+done
+
+echo "Teardown complete."
+```
+

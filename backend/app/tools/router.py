@@ -73,7 +73,33 @@ def verify_tool_caller(
     return caller
 
 
-router = APIRouter(prefix="/tools", tags=["tools"], dependencies=[Depends(verify_tool_caller)])
+def check_fault_injection(
+    request: Request,
+    settings: Annotated[Settings, Depends(get_settings)],
+    x_fault_inject: Annotated[Optional[str], Header(alias="X-Fault-Inject")] = None,
+) -> None:
+    """
+    Simulated fault injection for testing retry/restart scenarios (Task P4-03).
+    Only active when environment != 'prod'.
+    """
+    if settings.environment == "prod":
+        return
+
+    fault_code = x_fault_inject or request.headers.get("x-fault-inject") or settings.tools_fault_inject
+    if fault_code == "503":
+        logger.warning("Simulated fault injection: 503 Service Unavailable")
+        raise HTTPException(
+            status_code=503,
+            detail="Simulated transient service unavailability (TOOLS_FAULT_INJECT=503)",
+            headers={"Retry-After": "1"},
+        )
+
+
+router = APIRouter(
+    prefix="/tools",
+    tags=["tools"],
+    dependencies=[Depends(verify_tool_caller), Depends(check_fault_injection)],
+)
 
 
 @router.post("/get_portfolio", response_model=PortfolioRecord)

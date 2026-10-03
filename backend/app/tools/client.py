@@ -79,6 +79,8 @@ class ToolClient:
         self.timeout = timeout
 
     def _get_headers(self) -> dict[str, str]:
+        from app.adapters.telemetry import inject_trace_headers
+
         headers = {
             "Content-Type": "application/json",
             "X-Caller-Identity": "sa-runtime@mybrightday-dev.iam.gserviceaccount.com",
@@ -86,52 +88,56 @@ class ToolClient:
         token = _get_id_token(self.base_url)
         if token:
             headers["Authorization"] = f"Bearer {token}"
+        inject_trace_headers(headers)
         return headers
 
     async def _post_with_retry(self, endpoint: str, json_data: dict[str, Any]) -> dict[str, Any]:
+        from app.adapters.telemetry import telemetry_span
+
         url = f"{self.base_url}/tools/{endpoint}"
-        headers = self._get_headers()
         last_exception = None
 
-        for attempt in range(2):
-            try:
-                if self.http_client:
-                    resp = await self.http_client.post(
-                        url, json=json_data, headers=headers, timeout=self.timeout
-                    )
-                else:
-                    async with httpx.AsyncClient(timeout=self.timeout) as client:
-                        resp = await client.post(url, json=json_data, headers=headers)
-
-                if resp.status_code >= 500:
-                    if attempt == 0:
-                        logger.warning(
-                            f"Tool endpoint {endpoint} returned 5xx ({resp.status_code}), retrying..."
+        with telemetry_span(f"tool.{endpoint}", attributes={"tool.endpoint": endpoint, "tool.url": url}):
+            headers = self._get_headers()
+            for attempt in range(2):
+                try:
+                    if self.http_client:
+                        resp = await self.http_client.post(
+                            url, json=json_data, headers=headers, timeout=self.timeout
                         )
+                    else:
+                        async with httpx.AsyncClient(timeout=self.timeout) as client:
+                            resp = await client.post(url, json=json_data, headers=headers)
+
+                    if resp.status_code >= 500:
+                        if attempt == 0:
+                            logger.warning(
+                                f"Tool endpoint {endpoint} returned 5xx ({resp.status_code}), retrying..."
+                            )
+                            await asyncio.sleep(0.5)
+                            continue
+                        resp.raise_for_status()
+
+                    resp.raise_for_status()
+                    return resp.json()
+
+                except (httpx.RequestError, httpx.HTTPStatusError) as e:
+                    # Do not retry on 4xx client errors
+                    if isinstance(e, httpx.HTTPStatusError) and e.response.status_code < 500:
+                        raise e
+                    last_exception = e
+                    if attempt == 0:
+                        logger.warning(f"Tool endpoint {endpoint} failed: {e}, retrying...")
                         await asyncio.sleep(0.5)
                         continue
-                    resp.raise_for_status()
-
-                resp.raise_for_status()
-                return resp.json()
-
-            except (httpx.RequestError, httpx.HTTPStatusError) as e:
-                # Do not retry on 4xx client errors
-                if isinstance(e, httpx.HTTPStatusError) and e.response.status_code < 500:
                     raise e
-                last_exception = e
-                if attempt == 0:
-                    logger.warning(f"Tool endpoint {endpoint} failed: {e}, retrying...")
-                    await asyncio.sleep(0.5)
-                    continue
-                raise e
-            except Exception as e:
-                last_exception = e
-                if attempt == 0:
-                    logger.warning(f"Tool endpoint {endpoint} failed: {e}, retrying...")
-                    await asyncio.sleep(0.5)
-                    continue
-                raise e
+                except Exception as e:
+                    last_exception = e
+                    if attempt == 0:
+                        logger.warning(f"Tool endpoint {endpoint} failed: {e}, retrying...")
+                        await asyncio.sleep(0.5)
+                        continue
+                    raise e
 
         raise last_exception  # pragma: no cover
 

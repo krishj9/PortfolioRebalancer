@@ -1,0 +1,86 @@
+# ==============================================================================
+# Google Cloud Build Pipeline for Portfolio Rebalancer (Task P4-05)
+# Validates tests, builds container images, pushes to Artifact Registry,
+# and deploys Cloud Run services (rebalancer-api and rebalancer-tools).
+# ==============================================================================
+
+substitutions:
+  _REGION: "us-central1"
+  _ENV: "dev"
+  _AR_REPO: "portfolio-rebalancer"
+  _IMAGE_NAME: "backend"
+
+steps:
+  # Step 1: Run unit, parity, and mock GCP tests
+  - name: "python:3.14-slim"
+    id: "run-tests"
+    entrypoint: "bash"
+    args:
+      - "-c"
+      - |
+        apt-get update && apt-get install -y --no-install-recommends build-essential
+        pip install --no-cache-dir uv
+        uv pip install --system -e ./backend --no-cache
+        python -m pytest backend/tests/test_*.py backend/tests/gcp/ -v -m "not gcp_live"
+
+  # Step 2: Build container image with commit SHA and latest tags
+  - name: "gcr.io/cloud-builders/docker"
+    id: "build-image"
+    args:
+      - "build"
+      - "-t"
+      - "${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/${_IMAGE_NAME}:$COMMIT_SHA"
+      - "-t"
+      - "${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/${_IMAGE_NAME}:latest"
+      - "-f"
+      - "backend/Dockerfile"
+      - "."
+
+  # Step 3: Push image to Artifact Registry
+  - name: "gcr.io/cloud-builders/docker"
+    id: "push-image"
+    args:
+      - "push"
+      - "--all-tags"
+      - "${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/${_IMAGE_NAME}"
+
+  # Step 4: Deploy deterministic tools service (Private internal ingress)
+  - name: "gcr.io/google.com/cloudsdktool/cloud-sdk"
+    id: "deploy-tools"
+    entrypoint: "gcloud"
+    args:
+      - "run"
+      - "deploy"
+      - "rebalancer-tools"
+      - "--image=${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/${_IMAGE_NAME}:$COMMIT_SHA"
+      - "--region=${_REGION}"
+      - "--platform=managed"
+      - "--ingress=internal"
+      - "--service-account=sa-tools@$PROJECT_ID.iam.gserviceaccount.com"
+      - "--set-env-vars=APP_ROLE=tools,ENVIRONMENT=${_ENV},PERSISTENCE_MODE=firestore,FIRESTORE_PROJECT_ID=$PROJECT_ID,TOOLS_CALLER_CHECK=enforce,ALLOWED_TOOL_CALLERS=sa-runtime@$PROJECT_ID.iam.gserviceaccount.com"
+      - "--quiet"
+
+  # Step 5: Deploy API service
+  - name: "gcr.io/google.com/cloudsdktool/cloud-sdk"
+    id: "deploy-api"
+    entrypoint: "gcloud"
+    args:
+      - "run"
+      - "deploy"
+      - "rebalancer-api"
+      - "--image=${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/${_IMAGE_NAME}:$COMMIT_SHA"
+      - "--region=${_REGION}"
+      - "--platform=managed"
+      - "--ingress=all"
+      - "--allow-unauthenticated"
+      - "--service-account=sa-api@$PROJECT_ID.iam.gserviceaccount.com"
+      - "--set-env-vars=APP_ROLE=api,ENVIRONMENT=${_ENV},PERSISTENCE_MODE=firestore,FIRESTORE_PROJECT_ID=$PROJECT_ID,TRACE_PROVIDER=gcp_cloud_trace"
+      - "--quiet"
+
+images:
+  - "${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/${_IMAGE_NAME}:$COMMIT_SHA"
+  - "${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/${_IMAGE_NAME}:latest"
+
+timeout: "1200s"
+options:
+  logging: CLOUD_LOGGING_ONLY

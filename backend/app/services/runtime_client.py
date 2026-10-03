@@ -57,6 +57,8 @@ class RuntimeClient:
         return self._runtime
 
     def _execute_sync(self, request_payload: dict, run_id: str, session_id: str | None) -> dict:
+        from app.adapters.telemetry import get_current_trace_context
+
         runtime = self._get_runtime()
         kwargs: dict[str, Any] = {
             "request": request_payload,
@@ -64,6 +66,11 @@ class RuntimeClient:
         }
         if session_id:
             kwargs["session_id"] = session_id
+
+        trace_ctx = get_current_trace_context()
+        if trace_ctx.get("traceparent"):
+            kwargs["traceparent"] = trace_ctx["traceparent"]
+
         return runtime.query(**kwargs)
 
     async def run(
@@ -72,14 +79,25 @@ class RuntimeClient:
         session_id: str | None = None,
     ) -> OrchestrationResponse:
         """Execute portfolio rebalancing request on Vertex AI Agent Runtime."""
+        from app.adapters.telemetry import telemetry_span
+
         run_id = f"run_{uuid.uuid4().hex[:16]}"
         request_payload = request.model_dump(mode="json")
 
         try:
-            raw_response = await asyncio.to_thread(
-                self._execute_sync, request_payload, run_id, session_id
-            )
-            return OrchestrationResponse.model_validate(raw_response)
+            with telemetry_span(
+                "agent_runtime.client_call",
+                attributes={
+                    "run_id": run_id,
+                    "session_id": session_id,
+                    "resource_name": self.resource_name,
+                },
+                run_id=run_id,
+            ):
+                raw_response = await asyncio.to_thread(
+                    self._execute_sync, request_payload, run_id, session_id
+                )
+                return OrchestrationResponse.model_validate(raw_response)
         except Exception as exc:
             logger.error(
                 f"Agent Runtime execution failed for run_id={run_id}, resource={self.resource_name}: {exc}",

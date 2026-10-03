@@ -102,6 +102,7 @@ class RebalanceGraphApp:
         request: dict[str, Any],
         run_id: Optional[str] = None,
         session_id: Optional[str] = None,
+        traceparent: Optional[str] = None,
     ) -> dict[str, Any]:
         """Execute LangGraph rebalancing workflow for request payload.
 
@@ -109,101 +110,123 @@ class RebalanceGraphApp:
             request: Portfolio rebalance request payload dictionary.
             run_id: Optional execution run/trace ID.
             session_id: Optional conversational session ID.
+            traceparent: Optional W3C distributed traceparent header.
 
         Returns:
             Dict[str, Any]: Serialized OrchestrationResponse dictionary.
         """
-        try:
-            if self._orchestrator is None:
-                self.set_up()
+        from app.adapters.telemetry import create_traceparent, telemetry_span
 
-            req = PortfolioRebalanceRequest.model_validate(request)
-            if run_id:
-                req.correlation.trace_id = run_id
+        incoming_tp = traceparent or (request.get("traceparent") if isinstance(request, dict) else None)
+        effective_run_id = run_id or (request.get("run_id") if isinstance(request, dict) else None)
 
-            # Session lifecycle (Task P2-01)
-            effective_session_id = session_id or req.correlation.session_id
-            session_name = None
-            if self._sessions_adapter:
-                try:
-                    actor_id = req.actor.actor_id if req.actor else "local_owner"
-                    session_name = self._sessions_adapter.create_or_get_session(
-                        user_id=actor_id,
-                        session_id=effective_session_id,
-                    )
-                    req.correlation.session_id = session_name
-
-                    user_event_text = (
-                        f"Rebalance review requested for account '{req.account_profile.account_id}' "
-                        f"(client '{req.client_profile.client_id}')."
-                    )
-                    self._sessions_adapter.append_user_event(
-                        session_name=session_name,
-                        text=user_event_text,
-                        invocation_id=run_id,
-                    )
-                except Exception as sess_err:
-                    logger.warning(f"Failed to record session request event: {sess_err}")
-
+        with telemetry_span(
+            "agent_runtime.query",
+            attributes={"run_id": effective_run_id, "session_id": session_id},
+            traceparent=incoming_tp,
+            run_id=effective_run_id,
+        ) as root_span:
             try:
-                loop = asyncio.get_running_loop()
-            except RuntimeError:
-                loop = None
+                if self._orchestrator is None:
+                    self.set_up()
 
-            if loop and loop.is_running():
-                with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
-                    resp = pool.submit(asyncio.run, self._orchestrator.run(req)).result()
-            else:
-                resp = asyncio.run(self._orchestrator.run(req))
+                req = PortfolioRebalanceRequest.model_validate(request)
+                if effective_run_id:
+                    req.correlation.trace_id = effective_run_id
+                elif root_span and root_span.trace_id:
+                    req.correlation.trace_id = root_span.trace_id
 
-            if session_name:
-                resp.correlation.session_id = session_name
+                # Session lifecycle (Task P2-01)
+                effective_session_id = session_id or req.correlation.session_id
+                session_name = None
                 if self._sessions_adapter:
                     try:
-                        summary_text = (
-                            resp.recommendation_package.summary
-                            if resp.recommendation_package and resp.recommendation_package.summary
-                            else f"Rebalance workflow completed with state: {resp.workflow_state}"
+                        actor_id = req.actor.actor_id if req.actor else "local_owner"
+                        session_name = self._sessions_adapter.create_or_get_session(
+                            user_id=actor_id,
+                            session_id=effective_session_id,
                         )
-                        self._sessions_adapter.append_summary_event(
+                        req.correlation.session_id = session_name
+
+                        user_event_text = (
+                            f"Rebalance review requested for account '{req.account_profile.account_id}' "
+                            f"(client '{req.client_profile.client_id}')."
+                        )
+                        self._sessions_adapter.append_user_event(
                             session_name=session_name,
-                            text=summary_text,
+                            text=user_event_text,
                             invocation_id=run_id,
                         )
                     except Exception as sess_err:
-                        logger.warning(f"Failed to record session summary event: {sess_err}")
+                        logger.warning(f"Failed to record session request event: {sess_err}")
 
-                # Trigger asynchronous memory generation (Task P2-03)
-                if self.memory_generation_enabled:
-                    import threading
+                try:
+                    loop = asyncio.get_running_loop()
+                except RuntimeError:
+                    loop = None
 
-                    actor_id = req.actor.actor_id if req.actor else "local_owner"
-                    threading.Thread(
-                        target=self._trigger_memory_generation,
-                        args=(session_name, actor_id),
-                        daemon=True,
-                    ).start()
+                if loop and loop.is_running():
+                    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+                        resp = pool.submit(asyncio.run, self._orchestrator.run(req)).result()
+                else:
+                    resp = asyncio.run(self._orchestrator.run(req))
 
-            if resp.workflow_state == WorkflowState.BLOCKED:
-                from app.contracts.common import ErrorSeverity, StructuredError
-                if not resp.structured_error:
-                    resp.structured_error = StructuredError(
-                        code="CONTENT_BLOCKED",
-                        message="Request blocked by content safety policy: potential prompt injection or unsafe content detected.",
-                        severity=ErrorSeverity.CRITICAL,
-                        source="model_armor",
-                    )
+                if session_name:
+                    resp.correlation.session_id = session_name
+                    if self._sessions_adapter:
+                        try:
+                            summary_text = (
+                                resp.recommendation_package.summary
+                                if resp.recommendation_package and resp.recommendation_package.summary
+                                else f"Rebalance workflow completed with state: {resp.workflow_state}"
+                            )
+                            self._sessions_adapter.append_summary_event(
+                                session_name=session_name,
+                                text=summary_text,
+                                invocation_id=run_id,
+                            )
+                        except Exception as sess_err:
+                            logger.warning(f"Failed to record session summary event: {sess_err}")
 
-            return resp.model_dump(mode="json")
-        except Exception as e:
-            import traceback
+                    # Trigger asynchronous memory generation (Task P2-03)
+                    if self.memory_generation_enabled:
+                        import threading
 
-            logger.error(f"RebalanceGraphApp query failed: {e}", exc_info=True)
-            return {
-                "workflow_state": "BLOCKED",
-                "error": str(e),
-                "traceback": traceback.format_exc(),
-            }
+                        actor_id = req.actor.actor_id if req.actor else "local_owner"
+                        threading.Thread(
+                            target=self._trigger_memory_generation,
+                            args=(session_name, actor_id),
+                            daemon=True,
+                        ).start()
+
+                if resp.workflow_state == WorkflowState.BLOCKED:
+                    from app.contracts.common import ErrorSeverity, StructuredError
+                    if not resp.structured_error:
+                        resp.structured_error = StructuredError(
+                            code="CONTENT_BLOCKED",
+                            message="Request blocked by content safety policy: potential prompt injection or unsafe content detected.",
+                            severity=ErrorSeverity.CRITICAL,
+                            source="model_armor",
+                        )
+
+                result = resp.model_dump(mode="json")
+                if root_span:
+                    result["traceparent"] = create_traceparent(root_span.trace_id, root_span.span_id)
+                    result["run_id"] = effective_run_id or root_span.trace_id
+                return result
+            except Exception as e:
+                import traceback
+
+                logger.error(f"RebalanceGraphApp query failed: {e}", exc_info=True)
+                res = {
+                    "workflow_state": "BLOCKED",
+                    "error": str(e),
+                    "traceback": traceback.format_exc(),
+                }
+                if root_span:
+                    res["traceparent"] = create_traceparent(root_span.trace_id, root_span.span_id)
+                    res["run_id"] = effective_run_id or root_span.trace_id
+                return res
 
     def _trigger_memory_generation(
         self,

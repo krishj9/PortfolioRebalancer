@@ -16,6 +16,7 @@ dependencies = [
   "langgraph",
   "langsmith",
   "mangum",
+  "opentelemetry-api>=1.20.0",
   "pydantic",
   "pydantic-settings",
   "uvicorn[standard]",
@@ -40,6 +41,7 @@ testpaths = ["tests"]
 pythonpath = ["."]
 markers = [
   "gcp: marks tests as requiring GCP credentials",
+  "gcp_live: marks tests as live integration tests requiring active cloud resources",
 ]
 
 [tool.ruff]

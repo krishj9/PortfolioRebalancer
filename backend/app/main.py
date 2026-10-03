@@ -3,6 +3,7 @@ import os
 from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.adapters.telemetry import create_traceparent, telemetry_span
 from app.api.routes.approvals import router as approvals_router
 from app.api.routes.explain import router as explain_router
 from app.api.routes.health import router as health_router
@@ -38,6 +39,34 @@ def create_app() -> FastAPI:
         allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
         allow_headers=["*"],
     )
+
+    # ── Distributed Tracing Middleware (Task P4-01) ───────────────────────────
+    @app.middleware("http")
+    async def trace_middleware(request: Request, call_next):
+        incoming_tp = (
+            request.headers.get("traceparent")
+            or request.headers.get("x-cloud-trace-context")
+        )
+        incoming_run_id = request.headers.get("x-run-id") or request.headers.get("x-session-id")
+        span_attrs = {
+            "http.method": request.method,
+            "http.url": str(request.url),
+            "http.path": request.url.path,
+        }
+        with telemetry_span(
+            f"http.{request.method.lower()}",
+            attributes=span_attrs,
+            traceparent=incoming_tp,
+            run_id=incoming_run_id,
+        ) as span:
+            request.state.trace_id = span.trace_id
+            request.state.span_id = span.span_id
+            response = await call_next(request)
+            response.headers["traceparent"] = create_traceparent(span.trace_id, span.span_id)
+            response.headers["X-Trace-ID"] = span.trace_id
+            if span.attributes.get("run_id"):
+                response.headers["X-Run-ID"] = str(span.attributes["run_id"])
+            return response
 
     # ── Token gate middleware ──────────────────────────────────────────────────
     # Reads API_TOKEN from environment. If not set, gate is disabled (local dev).

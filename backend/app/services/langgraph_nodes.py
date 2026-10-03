@@ -4,6 +4,7 @@ import logging
 from datetime import datetime
 from typing import Any, Optional
 
+from app.adapters.telemetry import telemetry_span
 from app.contracts.analysis import (
     ApprovalArtifact,
     ExecutionProposalResponse,
@@ -33,32 +34,33 @@ async def validate_request(state: WorkflowGraphState) -> dict:
     Returns:
         Delta dictionary with validation results
     """
-    logger.info(f"Validating request {state['request_id']}")
+    with telemetry_span("node.validate_request", attributes={"request_id": state.get("request_id")}):
+        logger.info(f"Validating request {state['request_id']}")
 
-    request = state["request"]
-    errors = []
+        request = state["request"]
+        errors = []
 
-    # Validate allocation targets sum to 100% (support both 100-scale and 1.0-scale)
-    if hasattr(request, "allocation_target"):
-        total = sum(request.allocation_target.asset_class_targets.values())
-        total_flt = float(total)
-        if abs(total_flt - 100.0) > 1.0 and abs(total_flt - 1.0) > 0.01:
-            errors.append(f"Allocation targets sum to {total_flt}, expected 100%")
+        # Validate allocation targets sum to 100% (support both 100-scale and 1.0-scale)
+        if hasattr(request, "allocation_target"):
+            total = sum(request.allocation_target.asset_class_targets.values())
+            total_flt = float(total)
+            if abs(total_flt - 100.0) > 1.0 and abs(total_flt - 1.0) > 0.01:
+                errors.append(f"Allocation targets sum to {total_flt}, expected 100%")
 
-    # Validate holdings have positive quantities
-    if hasattr(request, "portfolio_snapshot"):
-        for holding in request.portfolio_snapshot.holdings:
-            if holding.quantity <= 0:
-                errors.append(f"Invalid quantity for {holding.symbol}: {holding.quantity}")
+        # Validate holdings have positive quantities
+        if hasattr(request, "portfolio_snapshot"):
+            for holding in request.portfolio_snapshot.holdings:
+                if holding.quantity <= 0:
+                    errors.append(f"Invalid quantity for {holding.symbol}: {holding.quantity}")
 
-    if errors:
-        return {
-            "validation_error": {"errors": errors, "timestamp": datetime.now().isoformat()},
-            "workflow_state": WorkflowState.BLOCKED,
-            "blockers": ["Request validation failed"],
-        }
+        if errors:
+            return {
+                "validation_error": {"errors": errors, "timestamp": datetime.now().isoformat()},
+                "workflow_state": WorkflowState.BLOCKED,
+                "blockers": ["Request validation failed"],
+            }
 
-    return {}
+        return {}
 
 
 async def initialize_context_and_trace(state: WorkflowGraphState) -> dict:
@@ -71,28 +73,29 @@ async def initialize_context_and_trace(state: WorkflowGraphState) -> dict:
     Returns:
         Delta dictionary with trace context
     """
-    logger.info(f"Initializing trace context for {state['request_id']}")
+    with telemetry_span("node.initialize_context_and_trace", attributes={"request_id": state.get("request_id")}):
+        logger.info(f"Initializing trace context for {state['request_id']}")
 
-    trace_provider = state.get("trace_provider", "bedrock_agentcore")
-    provider_trace_url = None
+        trace_provider = state.get("trace_provider", "gcp_cloud_trace")
+        provider_trace_url = None
 
-    if trace_provider == "bedrock_agentcore":
-        provider_trace_url = (
-            f"https://console.aws.amazon.com/cloudwatch/home?"
-            f"region=us-east-1#logsV2:logs-insights?queryDetail=~(source~'{state['trace_id']}')"
-        )
-    elif trace_provider == "langsmith":
-        provider_trace_url = (
-            f"https://smith.langchain.com/o/org/projects/p/project/r/{state['trace_id']}"
-        )
-    elif trace_provider == "gcp_cloud_trace":
-        provider_trace_url = (
-            f"https://console.cloud.google.com/traces/list?project=mybrightday-dev&tid={state['trace_id']}"
-        )
+        if trace_provider == "bedrock_agentcore":
+            provider_trace_url = (
+                f"https://console.aws.amazon.com/cloudwatch/home?"
+                f"region=us-east-1#logsV2:logs-insights?queryDetail=~(source~'{state['trace_id']}')"
+            )
+        elif trace_provider == "langsmith":
+            provider_trace_url = (
+                f"https://smith.langchain.com/o/org/projects/p/project/r/{state['trace_id']}"
+            )
+        elif trace_provider == "gcp_cloud_trace":
+            provider_trace_url = (
+                f"https://console.cloud.google.com/traces/list?project=mybrightday-dev&tid={state['trace_id']}"
+            )
 
-    logger.info(f"Trace URL: {provider_trace_url}")
+        logger.info(f"Trace URL: {provider_trace_url}")
 
-    return {"provider_trace_url": provider_trace_url}
+        return {"provider_trace_url": provider_trace_url}
 
 
 async def log_request_audit_event(
@@ -111,40 +114,41 @@ async def log_request_audit_event(
     Returns:
         Delta dictionary with audit event ID
     """
-    logger.info(f"Logging audit event for {state['request_id']}")
+    with telemetry_span("node.log_request_audit_event", attributes={"request_id": state.get("request_id")}):
+        logger.info(f"Logging audit event for {state['request_id']}")
 
-    request = state["request"]
-    event_id = f"audit-{state['request_id']}-request-received"
+        request = state["request"]
+        event_id = f"audit-{state['request_id']}-request-received"
 
-    if tool_client is not None:
-        await tool_client.audit(
-            event_type="REQUEST_RECEIVED",
-            correlation=request.correlation,
-            actor_id=request.actor.actor_id,
-            outcome="ACCEPTED" if not state.get("validation_error") else "REJECTED",
-        )
-    elif store is not None:
-        store.add_audit_event(
-            event_type="REQUEST_RECEIVED",
-            correlation=request.correlation,
-            actor_id=request.actor.actor_id,
-            outcome="ACCEPTED" if not state.get("validation_error") else "REJECTED",
-        )
-
-    if store is not None:
-        store.save_portfolio(
-            PortfolioRecord(
-                client_profile=request.client_profile,
-                account_profile=request.account_profile,
-                portfolio_snapshot=request.portfolio_snapshot,
-                allocation_target=request.allocation_target,
-                risk_profile=request.risk_profile,
-                updated_at=request.portfolio_snapshot.as_of,
-                source="rebalance_request",
+        if tool_client is not None:
+            await tool_client.audit(
+                event_type="REQUEST_RECEIVED",
+                correlation=request.correlation,
+                actor_id=request.actor.actor_id,
+                outcome="ACCEPTED" if not state.get("validation_error") else "REJECTED",
             )
-        )
+        elif store is not None:
+            store.add_audit_event(
+                event_type="REQUEST_RECEIVED",
+                correlation=request.correlation,
+                actor_id=request.actor.actor_id,
+                outcome="ACCEPTED" if not state.get("validation_error") else "REJECTED",
+            )
 
-    return {"audit_event_ids": [event_id]}
+        if store is not None:
+            store.save_portfolio(
+                PortfolioRecord(
+                    client_profile=request.client_profile,
+                    account_profile=request.account_profile,
+                    portfolio_snapshot=request.portfolio_snapshot,
+                    allocation_target=request.allocation_target,
+                    risk_profile=request.risk_profile,
+                    updated_at=request.portfolio_snapshot.as_of,
+                    source="rebalance_request",
+                )
+            )
+
+        return {"audit_event_ids": [event_id]}
 
 
 # ============================================================================
@@ -162,67 +166,68 @@ async def apply_output_guardrails(state: WorkflowGraphState) -> dict:
     Returns:
         Delta dictionary with guardrail results
     """
-    logger.info(f"Applying guardrails for {state['request_id']}")
+    with telemetry_span("node.apply_output_guardrails", attributes={"request_id": state.get("request_id")}):
+        logger.info(f"Applying guardrails for {state['request_id']}")
 
-    guardrail_result = {
-        "action": "NONE",
-        "assessments": [],
-        "timestamp": datetime.now().isoformat(),
-    }
-
-    recommendation = state.get("recommendation_package")
-    if recommendation:
-        summary = recommendation.summary.lower()
-        sensitive_keywords = ["password", "ssn", "credit card"]
-        if any(keyword in summary for keyword in sensitive_keywords):
-            guardrail_result["action"] = "BLOCKED"
-            guardrail_result["assessments"].append(
-                {"type": "SENSITIVE_INFORMATION", "action": "BLOCKED"}
-            )
-
-    # Model Armor prompt injection & jailbreak screening on user input (Task P3-04)
-    request = state.get("request")
-    if request:
-        constraints = getattr(request, "constraints", {}) or {}
-        constraint_texts = (
-            [str(v) for v in constraints.values()]
-            if isinstance(constraints, dict)
-            else [str(constraints)]
-        )
-        action_ctx = getattr(request, "requested_action_context", "") or ""
-        full_text = " ".join(constraint_texts + [action_ctx]).lower()
-        injection_keywords = [
-            "ignore previous instructions",
-            "ignore all previous instructions",
-            "reveal system prompt",
-            "disregard policy",
-            "approve all trades",
-            "jailbreak",
-            "bypass security",
-        ]
-        if any(pat in full_text for pat in injection_keywords):
-            logger.warning("Model Armor guardrail blocked prompt injection attempt: %s", full_text[:100])
-            guardrail_result["action"] = "BLOCKED"
-            guardrail_result["assessments"].append(
-                {"type": "PROMPT_INJECTION", "action": "BLOCKED"}
-            )
-
-    if guardrail_result["action"] == "BLOCKED":
-        updated_rec = state.get("recommendation_package")
-        if updated_rec:
-            updated_rec = updated_rec.model_copy(update={
-                "workflow_state": WorkflowState.BLOCKED,
-                "approval_eligibility": False,
-                "summary": "Request blocked by content safety policy: potential prompt injection or unsafe content detected.",
-            })
-        return {
-            "guardrail_result": guardrail_result,
-            "workflow_state": WorkflowState.BLOCKED,
-            "blockers": ["CONTENT_BLOCKED"],
-            "recommendation_package": updated_rec,
+        guardrail_result = {
+            "action": "NONE",
+            "assessments": [],
+            "timestamp": datetime.now().isoformat(),
         }
 
-    return {"guardrail_result": guardrail_result}
+        recommendation = state.get("recommendation_package")
+        if recommendation:
+            summary = recommendation.summary.lower()
+            sensitive_keywords = ["password", "ssn", "credit card"]
+            if any(keyword in summary for keyword in sensitive_keywords):
+                guardrail_result["action"] = "BLOCKED"
+                guardrail_result["assessments"].append(
+                    {"type": "SENSITIVE_INFORMATION", "action": "BLOCKED"}
+                )
+
+        # Model Armor prompt injection & jailbreak screening on user input (Task P3-04)
+        request = state.get("request")
+        if request:
+            constraints = getattr(request, "constraints", {}) or {}
+            constraint_texts = (
+                [str(v) for v in constraints.values()]
+                if isinstance(constraints, dict)
+                else [str(constraints)]
+            )
+            action_ctx = getattr(request, "requested_action_context", "") or ""
+            full_text = " ".join(constraint_texts + [action_ctx]).lower()
+            injection_keywords = [
+                "ignore previous instructions",
+                "ignore all previous instructions",
+                "reveal system prompt",
+                "disregard policy",
+                "approve all trades",
+                "jailbreak",
+                "bypass security",
+            ]
+            if any(pat in full_text for pat in injection_keywords):
+                logger.warning("Model Armor guardrail blocked prompt injection attempt: %s", full_text[:100])
+                guardrail_result["action"] = "BLOCKED"
+                guardrail_result["assessments"].append(
+                    {"type": "PROMPT_INJECTION", "action": "BLOCKED"}
+                )
+
+        if guardrail_result["action"] == "BLOCKED":
+            updated_rec = state.get("recommendation_package")
+            if updated_rec:
+                updated_rec = updated_rec.model_copy(update={
+                    "workflow_state": WorkflowState.BLOCKED,
+                    "approval_eligibility": False,
+                    "summary": "Request blocked by content safety policy: potential prompt injection or unsafe content detected.",
+                })
+            return {
+                "guardrail_result": guardrail_result,
+                "workflow_state": WorkflowState.BLOCKED,
+                "blockers": ["CONTENT_BLOCKED"],
+                "recommendation_package": updated_rec,
+            }
+
+        return {"guardrail_result": guardrail_result}
 
 
 async def assemble_recommendation(state: WorkflowGraphState) -> dict:
@@ -332,18 +337,19 @@ async def persist_workflow_artifacts(
     Returns:
         Delta dictionary with persisted approval artifact
     """
-    logger.info(f"Persisting artifacts for {state['request_id']}")
+    with telemetry_span("node.persist_workflow_artifacts", attributes={"request_id": state.get("request_id")}):
+        logger.info(f"Persisting artifacts for {state['request_id']}")
 
-    approval = state.get("approval_artifact")
-    if approval is not None:
-        if tool_client is not None:
-            persisted = await tool_client.persist_proposal(approval)
-            return {"approval_artifact": persisted}
-        elif store is not None:
-            persisted = store.save_approval(approval)
-            return {"approval_artifact": persisted}
+        approval = state.get("approval_artifact")
+        if approval is not None:
+            if tool_client is not None:
+                persisted = await tool_client.persist_proposal(approval)
+                return {"approval_artifact": persisted}
+            elif store is not None:
+                persisted = store.save_approval(approval)
+                return {"approval_artifact": persisted}
 
-    return {}
+        return {}
 
 
 async def emit_workflow_audit_event(
@@ -362,55 +368,56 @@ async def emit_workflow_audit_event(
     Returns:
         Delta dictionary with audit event ID
     """
-    logger.info(f"Emitting workflow audit event for {state['request_id']}")
+    with telemetry_span("node.emit_workflow_audit_event", attributes={"request_id": state.get("request_id")}):
+        logger.info(f"Emitting workflow audit event for {state['request_id']}")
 
-    request = state["request"]
-    approval = state.get("approval_artifact")
-    event_id = f"audit-{state['request_id']}-workflow-completed"
+        request = state["request"]
+        approval = state.get("approval_artifact")
+        event_id = f"audit-{state['request_id']}-workflow-completed"
 
-    if approval is not None:
-        if tool_client is not None:
-            await tool_client.audit(
-                event_type="APPROVAL_ARTIFACT_CREATED",
-                correlation=request.correlation,
-                actor_id=request.actor.actor_id,
-                outcome=approval.approval_status,
-                details={"approval_id": approval.approval_id},
+        if approval is not None:
+            if tool_client is not None:
+                await tool_client.audit(
+                    event_type="APPROVAL_ARTIFACT_CREATED",
+                    correlation=request.correlation,
+                    actor_id=request.actor.actor_id,
+                    outcome=approval.approval_status,
+                    details={"approval_id": approval.approval_id},
+                )
+            elif store is not None:
+                store.add_audit_event(
+                    event_type="APPROVAL_ARTIFACT_CREATED",
+                    correlation=request.correlation,
+                    actor_id=request.actor.actor_id,
+                    outcome=approval.approval_status,
+                    details={"approval_id": approval.approval_id},
+                )
+        elif state.get("workflow_state") == WorkflowState.BLOCKED:
+            event_type = (
+                "CONTENT_BLOCKED"
+                if (state.get("blockers") and "CONTENT_BLOCKED" in state["blockers"])
+                else "POLICY_BLOCKED"
             )
-        elif store is not None:
-            store.add_audit_event(
-                event_type="APPROVAL_ARTIFACT_CREATED",
-                correlation=request.correlation,
-                actor_id=request.actor.actor_id,
-                outcome=approval.approval_status,
-                details={"approval_id": approval.approval_id},
-            )
-    elif state.get("workflow_state") == WorkflowState.BLOCKED:
-        event_type = (
-            "CONTENT_BLOCKED"
-            if (state.get("blockers") and "CONTENT_BLOCKED" in state["blockers"])
-            else "POLICY_BLOCKED"
-        )
-        reason = "Request blocked by content safety policy: potential prompt injection or unsafe content detected"
-        actor_id = request.actor.actor_id if request.actor else "unknown"
-        if tool_client is not None:
-            await tool_client.audit(
-                event_type=event_type,
-                correlation=request.correlation,
-                actor_id=actor_id,
-                outcome="BLOCKED",
-                details={"reason": reason},
-            )
-        elif store is not None:
-            store.add_audit_event(
-                event_type=event_type,
-                correlation=request.correlation,
-                actor_id=actor_id,
-                outcome="BLOCKED",
-                details={"reason": reason},
-            )
+            reason = "Request blocked by content safety policy: potential prompt injection or unsafe content detected"
+            actor_id = request.actor.actor_id if request.actor else "unknown"
+            if tool_client is not None:
+                await tool_client.audit(
+                    event_type=event_type,
+                    correlation=request.correlation,
+                    actor_id=actor_id,
+                    outcome="BLOCKED",
+                    details={"reason": reason},
+                )
+            elif store is not None:
+                store.add_audit_event(
+                    event_type=event_type,
+                    correlation=request.correlation,
+                    actor_id=actor_id,
+                    outcome="BLOCKED",
+                    details={"reason": reason},
+                )
 
-    return {"audit_event_ids": [event_id]}
+        return {"audit_event_ids": [event_id]}
 
 
 async def return_response(state: WorkflowGraphState) -> dict:

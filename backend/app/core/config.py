@@ -142,8 +142,8 @@ class TracingConfig(BaseSettings):
     """Tracing configuration."""
 
     # Trace provider
-    trace_provider: Literal["bedrock_agentcore", "langsmith"] = Field(
-        default="bedrock_agentcore", description="Trace provider"
+    trace_provider: Literal["bedrock_agentcore", "langsmith", "gcp_cloud_trace"] = Field(
+        default="gcp_cloud_trace", description="Trace provider"
     )
 
     # LangSmith configuration
@@ -275,6 +275,10 @@ class Settings(BaseSettings):
     allowed_tool_callers: list[str] = Field(
         default_factory=lambda: ["sa-runtime@mybrightday-dev.iam.gserviceaccount.com"],
         description="Allowed caller service account emails for tools service",
+    )
+    tools_fault_inject: str | None = Field(
+        default=None,
+        description="Fault injection for tools testing (e.g. '503'; ignored in prod)",
     )
 
     # LLM Integration (nested configs)
