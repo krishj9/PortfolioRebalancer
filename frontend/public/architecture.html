@@ -465,8 +465,9 @@
 
     .title-stats {
       display: flex;
-      gap: 32px;
+      gap: 16px;
       justify-content: center;
+      flex-wrap: wrap;
     }
 
     .stat-box {
@@ -476,7 +477,7 @@
       background: rgba(255, 255, 255, 0.03);
       border: 1px solid var(--border-subtle);
       border-radius: 12px;
-      padding: 14px 28px;
+      padding: 12px 20px;
     }
 
     .stat-val {
@@ -674,15 +675,19 @@
         </div>
         <div class="stat-box">
           <span class="stat-val">A2A + MCP</span>
-          <span class="stat-label">Protocols Active</span>
+          <span class="stat-label">Open Protocols</span>
         </div>
         <div class="stat-box">
-          <span class="stat-val">100%</span>
-          <span class="stat-label">Deterministic Safety</span>
+          <span class="stat-val" style="color: var(--rose);">Cloud Armor</span>
+          <span class="stat-label">Edge WAF Defense</span>
         </div>
         <div class="stat-box">
-          <span class="stat-val">0-Trust</span>
-          <span class="stat-label">Security & Privacy</span>
+          <span class="stat-val" style="color: var(--amber);">Model Armor</span>
+          <span class="stat-label">Jailbreak Block</span>
+        </div>
+        <div class="stat-box">
+          <span class="stat-val" style="color: var(--emerald);">Agent Gateway</span>
+          <span class="stat-label">Egress Governance</span>
         </div>
       </div>
     </section>
@@ -699,44 +704,42 @@
 
       <div class="arch-flow">
         <div class="arch-tier">
-          <div class="arch-tier-title">1. Intake & Client</div>
+          <div class="arch-tier-title" style="color: var(--indigo);">1. Edge & Intake</div>
           <div class="arch-items">
+            <div class="arch-pill" style="border-color: var(--rose); color: var(--rose);">🛡️ Cloud Armor Edge WAF</div>
+            <div class="arch-pill">Global External HTTPS LB</div>
+            <div class="arch-pill" style="border-color: var(--indigo);">Identity-Aware Proxy (IAP)</div>
             <div class="arch-pill">Angular 21 Signals UI</div>
-            <div class="arch-pill">Identity-Aware Proxy (IAP)</div>
-            <div class="arch-pill">SSE Market Stream</div>
-            <div class="arch-pill">Correlation Metadata Injection</div>
           </div>
         </div>
 
         <div class="arch-tier">
-          <div class="arch-tier-title">2. Orchestration</div>
+          <div class="arch-tier-title" style="color: var(--purple);">2. Orchestration</div>
           <div class="arch-items">
             <div class="arch-pill" style="border-color: var(--indigo); color: #818cf8;">LangGraph State Machine</div>
-            <div class="arch-pill">Supervisor Workflow Controller</div>
-            <div class="arch-pill">Conditional Routing & Circuit Breakers</div>
-            <div class="arch-pill">State Transition Checkpointing</div>
+            <div class="arch-pill" style="border-color: var(--rose); color: var(--rose);">🛡️ Model Armor Guardrail</div>
+            <div class="arch-pill">Vertex AI Gemini / AWS Bedrock</div>
+            <div class="arch-pill">Correlation Metadata & OTel</div>
           </div>
         </div>
 
         <div class="arch-tier">
-          <div class="arch-tier-title">3. Specialist Swarm</div>
+          <div class="arch-tier-title" style="color: var(--cyan);">3. Gateway & Swarm</div>
           <div class="arch-items">
-            <div class="arch-pill">Memory Bank (User Scoped)</div>
+            <div class="arch-pill" style="border-color: var(--cyan); color: var(--cyan);">🌐 GCP Agent Gateway (Egress)</div>
+            <div class="arch-pill">Agent Registry & UAP (SPIFFE)</div>
             <div class="arch-pill" style="border-color: var(--cyan);">Market Research Agent (A2A)</div>
             <div class="arch-pill" style="border-color: var(--emerald);">Sentiment Agent (MCP)</div>
-            <div class="arch-pill">Rebalancing Agent</div>
-            <div class="arch-pill">Risk & Policy Agent</div>
-            <div class="arch-pill">Trade Proposal Agent</div>
           </div>
         </div>
 
         <div class="arch-tier">
-          <div class="arch-tier-title">4. Compute & Data</div>
+          <div class="arch-tier-title" style="color: var(--amber);">4. Private Compute</div>
           <div class="arch-items">
-            <div class="arch-pill" style="border-color: var(--amber);">Isolated Tools Engine (Private Microservice)</div>
+            <div class="arch-pill">Private Service Connect (PSC)</div>
+            <div class="arch-pill" style="border-color: var(--amber);">Isolated Tools Engine (Cloud Run)</div>
             <div class="arch-pill">BigQuery Analytics Stream</div>
-            <div class="arch-pill">Firestore / DynamoDB Store</div>
-            <div class="arch-pill">OpenTelemetry Spans</div>
+            <div class="arch-pill">Immutable Audit Hashes</div>
           </div>
         </div>
       </div>
@@ -916,101 +919,231 @@ state.workflow_state = <span class="code-str">"DEGRADED"</span></div>
     </section>
 
     <!-- ══════════════════════════════════════════════════════════════
-         SLIDE 5: AI Governance & Guardrails
+         SLIDE 5: Google Cloud Armor — Edge WAF & Application Defense
     ══════════════════════════════════════════════════════════════ -->
-    <section class="slide" data-topic="AI Governance">
-      <div class="slide-badge badge-rose">Governance & Safety</div>
-      <h2 class="slide-title">Multi-Layered AI Governance & Safety Guardrails</h2>
+    <section class="slide" data-topic="Google Cloud Armor">
+      <div class="slide-badge badge-rose">Perimeter Defense</div>
+      <h2 class="slide-title">Google Cloud Armor: Edge WAF & DDoS Protection</h2>
       <p class="slide-subtitle">
-        Enterprise financial AI demands rigorous defense-in-depth: prompt injection prevention, strict JSON schema validation, and confidence threshold gates before any output touches advisor eyes.
+        First line of defense: Attached to the Global External Application Load Balancer to inspect HTTP/S traffic, throttle malicious IPs, and block OWASP Top 10 exploits before packets ever reach Cloud Run.
       </p>
 
       <div class="grid-3">
         <div class="feature-card" style="--card-accent: var(--rose);">
           <div class="card-icon">🛡️</div>
-          <div class="card-title">Model Armor & Sanitization</div>
+          <div class="card-title">Preconfigured OWASP CRS</div>
           <div class="card-desc">
-            Incoming requests, user preferences, and free-form prompts are passed through the Model Armor layer. Injection attacks, jailbreaks, and delimiter escapes trigger immediate safety halts.
+            Enforces preconfigured ModSecurity Core Rule Sets (CRS v3.3): SQL Injection (<span class="code-str">sqli-v33-stable</span>), Cross-Site Scripting (<span class="code-str">xss-v33-stable</span>), and Local File Inclusion (<span class="code-str">lfi-v33-stable</span>).
           </div>
-          <div class="card-tag">CONTENT_BLOCKED DETECTION</div>
+          <div class="card-tag">DENY(403) PERIMETER BLOCK</div>
         </div>
 
         <div class="feature-card" style="--card-accent: var(--amber);">
-          <div class="card-icon">📐</div>
-          <div class="card-title">Pydantic Schema Validation</div>
+          <div class="card-icon">⚡</div>
+          <div class="card-title">Adaptive Rate Limiting</div>
           <div class="card-desc">
-            All LLM outputs are validated against strict Pydantic schemas. If a model hallucinates an invalid asset class, negative price, or malformed JSON, validation fails and triggers deterministic fallback.
+            Throttles traffic at 120 requests/minute per client IP using <span class="code-str">SRC_IPS_V1</span>. Prevents automated brute-force attacks, scraping, and denial of service without impacting genuine advisors.
           </div>
-          <div class="card-tag">SCHEMA CONTRACT INTEGRITY</div>
+          <div class="card-tag">THROTTLE · 120 REQ/MIN</div>
+        </div>
+
+        <div class="feature-card" style="--card-accent: var(--indigo);">
+          <div class="card-icon">🔑</div>
+          <div class="card-title">Identity-Aware Proxy (IAP)</div>
+          <div class="card-desc">
+            Sits behind Cloud Armor on the HTTPS backend service. Validates Google corporate credentials via OIDC and securely passes <span class="code-str">x-goog-authenticated-user-email</span> for RBAC authorization.
+          </div>
+          <div class="card-tag">ZERO TRUST INGRESS</div>
+        </div>
+      </div>
+
+      <div class="code-box" style="margin-top: 16px;">
+<span class="code-cm"># Terraform Cloud Armor Policy Definition (infra/gcp/terraform/edge.tf)</span>
+<span class="code-kw">resource</span> <span class="code-str">"google_compute_security_policy"</span> <span class="code-str">"edge_security_policy"</span> {
+  name        = <span class="code-str">"${var.app_name}-edge-armor"</span>
+  description = <span class="code-str">"Cloud Armor edge security policy with OWASP mitigations & rate limiting"</span>
+
+  <span class="code-cm"># SQLi & XSS Preconfigured Rules</span>
+  rule {
+    action = <span class="code-str">"deny(403)"</span> priority = <span class="code-num">1000</span>
+    match { expr { expression = <span class="code-str">"evaluatePreconfiguredExpr('sqli-v33-stable')"</span> } }
+  }
+  <span class="code-cm"># IP Rate Limiting</span>
+  rule {
+    action = <span class="code-str">"throttle"</span> priority = <span class="code-num">2000</span>
+    match { versioned_expr = <span class="code-str">"SRC_IPS_V1"</span> config { src_ip_ranges = [<span class="code-str">"*"</span>] } }
+    rate_limit_options { conform_action = <span class="code-str">"allow"</span> exceed_action = <span class="code-str">"deny(429)"</span> rate_limit_threshold { count = <span class="code-num">120</span> interval_sec = <span class="code-num">60</span> } }
+  }
+}</div>
+    </section>
+
+    <!-- ══════════════════════════════════════════════════════════════
+         SLIDE 6: Google Cloud Model Armor — Generative AI Safety
+    ══════════════════════════════════════════════════════════════ -->
+    <section class="slide" data-topic="Google Model Armor">
+      <div class="slide-badge badge-rose">Generative AI Guardrail</div>
+      <h2 class="slide-title">Google Cloud Model Armor: GenAI Threat Mitigation</h2>
+      <p class="slide-subtitle">
+        Proactive LLM defense: Sanitizes free-form advisor notes, detects prompt injection & jailbreak exploits, suppresses trade recommendation generation, and enforces a fail-closed architecture.
+      </p>
+
+      <div class="grid-3">
+        <div class="feature-card" style="--card-accent: var(--rose);">
+          <div class="card-icon">🛑</div>
+          <div class="card-title">Prompt Injection Screening</div>
+          <div class="card-desc">
+            Model Armor template (<span class="code-str">rebalancer-content-safety</span>) inspects user inputs for role hijacking, system instruction overrides, delimiter escapes, and malicious URIs in BLOCK enforcement mode.
+          </div>
+          <div class="card-tag">ENFORCEMENT = BLOCK</div>
+        </div>
+
+        <div class="feature-card" style="--card-accent: var(--amber);">
+          <div class="card-icon">🔒</div>
+          <div class="card-title">Fail-Closed Orchestration</div>
+          <div class="card-desc">
+            When a threat is detected, LangGraph transitions to <span style="color: var(--rose);">workflow_state="BLOCKED"</span>. Proposal generation is halted, and cryptographic approval tokens (<span class="code-str">apr_...</span>) are strictly suppressed.
+          </div>
+          <div class="card-tag">APPROVAL SUPPRESSION</div>
+        </div>
+
+        <div class="feature-card" style="--card-accent: var(--cyan);">
+          <div class="card-icon">📊</div>
+          <div class="card-title">Security Telemetry & Alerts</div>
+          <div class="card-desc">
+            Emits high-priority <span class="code-str">CONTENT_BLOCKED</span> audit events to Cloud Logging and BigQuery analytics. SRE dashboards track incidents via the <span class="code-str">content_blocked_count</span> metric.
+          </div>
+          <div class="card-tag">CLOUD MONITORING METRIC</div>
+        </div>
+      </div>
+
+      <div class="code-box" style="margin-top: 16px;">
+<span class="code-cm"># Model Armor Template CLI Setup & Fail-Closed Python Guardrail (langgraph_nodes.py)</span>
+<span class="code-cm"># 1. GCP CLI Template Creation:</span>
+$ gcloud model-armor templates create rebalancer-content-safety \
+    --location=us-central1 --pi-and-jailbreak-filter-settings=enforcement=BLOCK --malicious-uris-filter-settings=enforcement=BLOCK
+
+<span class="code-cm"># 2. Fail-Closed Enforcement in Orchestration Node:</span>
+guardrail_result = model_armor.screen_prompt(user_text=request.notes)
+<span class="code-kw">if</span> guardrail_result.action == <span class="code-str">"BLOCKED"</span>:
+    logger.warning(<span class="code-str">"Model Armor guardrail blocked prompt injection: %s"</span>, full_text[:100])
+    <span class="code-kw">return</span> {
+        <span class="code-kw">"workflow_state"</span>: <span class="code-str">"BLOCKED"</span>,
+        <span class="code-kw">"rebalance_recommendation"</span>: <span class="code-kw">None</span>,     <span class="code-cm"># Suppress trade proposals</span>
+        <span class="code-kw">"approval_artifact"</span>: <span class="code-kw">None</span>,           <span class="code-cm"># Prevent token issuance</span>
+        <span class="code-kw">"event_type"</span>: <span class="code-str">"CONTENT_BLOCKED"</span>
+    }</div>
+    </section>
+
+    <!-- ══════════════════════════════════════════════════════════════
+         SLIDE 7: GCP Agent Gateway & Agent Registry
+    ══════════════════════════════════════════════════════════════ -->
+    <section class="slide" data-topic="GCP Agent Gateway">
+      <div class="slide-badge badge-cyan">Agent Infrastructure</div>
+      <h2 class="slide-title">GCP Agent Gateway & Agent Registry: Tool Governance</h2>
+      <p class="slide-subtitle">
+        Gemini Enterprise Agent Platform: Operating in Agent-to-Anywhere egress mode to mediate, inspect, and authenticate all communications between AI agent runtimes and deterministic microservices.
+      </p>
+
+      <div class="grid-3">
+        <div class="feature-card" style="--card-accent: var(--cyan);">
+          <div class="card-icon">🌐</div>
+          <div class="card-title">Agent-to-Anywhere (EGRESS)</div>
+          <div class="card-desc">
+            Deploys <span class="code-str">network-services agent-gateways</span> in <span class="code-str">type=EGRESS</span> mode. Intercepts outbound calls from the LangGraph runtime to financial tool endpoints, ensuring transparent mediation.
+          </div>
+          <div class="card-tag">EGRESS GATEWAY MODE</div>
         </div>
 
         <div class="feature-card" style="--card-accent: var(--emerald);">
-          <div class="card-icon">📊</div>
-          <div class="card-title">Confidence Threshold Gating</div>
+          <div class="card-icon">📋</div>
+          <div class="card-title">Agent Registry & Contracts</div>
           <div class="card-desc">
-            Agents output a confidence score (<span style="color: var(--cyan);">0.0 - 1.0</span>). When confidence drops below configured threshold (e.g. 0.70), the workflow marks state as <span style="color: var(--amber);">LOW_CONFIDENCE</span> and alerts the advisor.
+            Deterministic tools are registered in Google Cloud Agent Registry (<span class="code-str">rebalancer-tools-endpoint</span>). Strict endpoint specifications prevent agents from invoking arbitrary or unvetted APIs.
           </div>
-          <div class="card-tag">LOW_CONFIDENCE ROUTING</div>
+          <div class="card-tag">REGISTERED CONTRACTS</div>
+        </div>
+
+        <div class="feature-card" style="--card-accent: var(--indigo);">
+          <div class="card-icon">🪪</div>
+          <div class="card-title">Universal Agent Principal (UAP)</div>
+          <div class="card-desc">
+            IAM Unified Access Policy grants egress permissions strictly to the Agent Runtime SPIFFE identity (<span class="code-str">spiffe://gcp.id/agent/...</span>). Default-deny access stops unauthorized tool execution.
+          </div>
+          <div class="card-tag">SPIFFE WORKLOAD IDENTITY</div>
         </div>
       </div>
 
       <div class="code-box" style="margin-top: 16px;">
-<span class="code-cm"># Governance Guardrail Flow (Input Sanitization -> Model -> Schema Validation -> Confidence Gate)</span>
-sanitized_inputs = InputSanitizer.validate_template_inputs(user_prompt)
-response = <span class="code-kw">await</span> model_adapter.invoke(system_prompt=tmpl.system_prompt, prompt=sanitized_inputs)
-validation = <span class="code-kw">await</span> response_validator.validate_response(response.content, schema=OutputSchema, min_confidence=<span class="code-num">0.70</span>)
+<span class="code-cm"># Egress Gateway & Tool Registration Script (infra/gcp/scripts/gateway_setup.sh)</span>
+<span class="code-cm"># 1. Create Egress Agent Gateway</span>
+$ gcloud network-services agent-gateways create portfolio-rebalancer-egress-gw \
+    --location=us-central1 --type=EGRESS --description=<span class="code-str">"Egress gateway for tools and model governance"</span>
 
-<span class="code-kw">if not</span> validation.is_valid:
-    logger.warning(<span class="code-str">f"Governance breach or schema violation: {validation.violations}"</span>)
-    <span class="code-kw">return</span> fallback_safe_response()</div>
+<span class="code-cm"># 2. Attach Model Armor Template to Egress Gateway</span>
+$ gcloud network-services agent-gateways update portfolio-rebalancer-egress-gw \
+    --location=us-central1 --model-armor-template=<span class="code-str">"projects/${PROJECT_ID}/locations/us-central1/templates/rebalancer-content-safety"</span>
+
+<span class="code-cm"># 3. Register Deterministic Tools in Agent Registry</span>
+$ gcloud agent-registry services create rebalancer-tools-endpoint \
+    --interfaces=url=<span class="code-str">"${TOOLS_URL}"</span>,protocolBinding=<span class="code-str">"http"</span> --display-name=<span class="code-str">"Portfolio Rebalancer Deterministic Tools"</span></div>
     </section>
 
     <!-- ══════════════════════════════════════════════════════════════
-         SLIDE 6: Security & Zero Trust Architecture
+         SLIDE 8: 4-Layer Defense-in-Depth Security Matrix
     ══════════════════════════════════════════════════════════════ -->
-    <section class="slide" data-topic="Zero Trust Security">
+    <section class="slide" data-topic="Defense-in-Depth Matrix">
       <div class="slide-badge badge-indigo">Security Architecture</div>
-      <h2 class="slide-title">Enterprise Security: Zero Trust & Microservice Isolation</h2>
+      <h2 class="slide-title">4-Layer Defense-in-Depth: Continuous Automated Verification</h2>
       <p class="slide-subtitle">
-        Eliminating single points of failure with Identity-Aware Proxy (IAP), role-based tokens, private VPC microservices, and automatic PII data redaction across all layers.
+        Every layer enforces non-overlapping defense: External edge WAF, authenticated user identity, GenAI prompt sanitization, and isolated private microservices with caller checking.
       </p>
 
-      <div class="grid-2">
-        <div class="feature-card">
-          <div class="card-title">🔒 Deterministic Tools Isolation</div>
-          <div class="card-desc">
-            The core mathematical and persistence engine is packaged as an isolated private microservice (<span class="code-str">rebalancer-tools</span>). It enforces strict caller validation via Google Cloud IAM.
-          </div>
-          <div class="card-desc" style="margin-top: 8px;">
-            • <span style="color: var(--cyan);">Private Internal Ingress</span>: No direct internet access<br>
-            • <span style="color: var(--cyan);">Enforced Caller Identity</span>: Only authenticated runtime service accounts can invoke tools<br>
-            • Prevents direct SQL/DynamoDB/Firestore exposure from client layers
-          </div>
+      <div class="grid-4">
+        <div class="feature-card" style="--card-accent: var(--rose);">
+          <div class="card-icon">1️⃣</div>
+          <div class="card-title">Cloud Armor Edge WAF</div>
+          <div class="card-desc">Blocks SQLi, XSS, and volumetric attacks at the ALB perimeter with HTTP 403 before reaching Cloud Run.</div>
+          <div class="card-tag">CHECK 4 · PASS</div>
         </div>
 
-        <div class="feature-card">
-          <div class="card-title">🛡️ Data Protection & PII Redaction</div>
-          <div class="card-desc">
-            Enterprise logging automatically scrubs sensitive data. Investor account numbers, client identifiers, and exact dollar holdings are filtered prior to telemetry emission.
-          </div>
-          <div class="card-desc" style="margin-top: 8px;">
-            • <span style="color: var(--emerald);">Cloud Logging Redaction</span>: Structured JSON masking<br>
-            • <span style="color: var(--emerald);">Prompt Injection Quarantine</span>: Unsafe inputs isolated from training / cache<br>
-            • <span style="color: var(--emerald);">Scoped Authorization</span>: Users can only inspect or delete their own memories
-          </div>
+        <div class="feature-card" style="--card-accent: var(--amber);">
+          <div class="card-icon">2️⃣</div>
+          <div class="card-title">Identity & Access (IAP)</div>
+          <div class="card-desc">Authenticates Google OIDC identity; denies unauthorized cross-account portfolio access with HTTP 403 Forbidden.</div>
+          <div class="card-tag">CHECK 2 · PASS</div>
+        </div>
+
+        <div class="feature-card" style="--card-accent: var(--cyan);">
+          <div class="card-icon">3️⃣</div>
+          <div class="card-title">Model Armor Shield</div>
+          <div class="card-desc">Screens prompt injection & jailbreak; transitions state to BLOCKED and suppresses approval token issuance.</div>
+          <div class="card-tag">CHECK 3 · PASS</div>
+        </div>
+
+        <div class="feature-card" style="--card-accent: var(--emerald);">
+          <div class="card-icon">4️⃣</div>
+          <div class="card-title">Private Tools Engine</div>
+          <div class="card-desc">Cloud Run internal ingress + caller identity enforcement (<span class="code-str">X-Caller-Identity</span>); rejects external direct calls.</div>
+          <div class="card-tag">CHECK 1 · PASS</div>
         </div>
       </div>
 
       <div class="code-box" style="margin-top: 16px;">
-<span class="code-cm"># Caller Authorization Enforcement in Isolated Tools Service</span>
-<span class="code-kw">if</span> settings.tools_caller_check == <span class="code-str">"enforce"</span>:
-    caller = request.headers.get(<span class="code-str">"X-Forwarded-Client-Cert"</span>) <span class="code-kw">or</span> request.headers.get(<span class="code-str">"X-Caller-Identity"</span>)
-    <span class="code-kw">if</span> caller <span class="code-kw">not in</span> settings.allowed_tool_callers:
-        <span class="code-kw">raise</span> HTTPException(status_code=<span class="code-num">403</span>, detail=<span class="code-str">"Caller not authorized for tools engine"</span>)</div>
+<span class="code-cm"># Automated Security Demonstration Script (infra/gcp/scripts/demo_security.sh)</span>
+$ ./infra/gcp/scripts/demo_security.sh
+=====================================================================
+      Portfolio Rebalancer GCP - Security & Governance Demo
+=====================================================================
+[Check 1/4] Private Tools Direct Bypass Denial:       ✔ SUCCESS (Caller rejected with HTTP 403)
+[Check 2/4] Unauthorized Identity / Resource Denial: ✔ SUCCESS (Cross-account access denied HTTP 403)
+[Check 3/4] Model Armor Prompt Injection Screening:  ✔ SUCCESS (Workflow BLOCKED, CONTENT_BLOCKED emitted)
+[Check 4/4] Cloud Armor Edge WAF Rule Mitigation:    ✔ SUCCESS (SQLi/XSS blocked at edge HTTP 403)
+=====================================================================
+Summary: 4/4 Security & Governance Checks Passed — All boundaries verified!</div>
     </section>
 
     <!-- ══════════════════════════════════════════════════════════════
-         SLIDE 7: Memory Architecture & Managed Context
+         SLIDE 9: Memory Architecture & Managed Context
     ══════════════════════════════════════════════════════════════ -->
     <section class="slide" data-topic="Memory Architecture">
       <div class="slide-badge badge-amber">Context & Memory</div>
@@ -1065,7 +1198,7 @@ validation = <span class="code-kw">await</span> response_validator.validate_resp
     </section>
 
     <!-- ══════════════════════════════════════════════════════════════
-         SLIDE 8: Observability, Telemetry & Analytics
+         SLIDE 10: Observability, Telemetry & Analytics
     ══════════════════════════════════════════════════════════════ -->
     <section class="slide" data-topic="Observability & Telemetry">
       <div class="slide-badge badge-cyan">Full-Stack Observability</div>
@@ -1116,7 +1249,7 @@ validation = <span class="code-kw">await</span> response_validator.validate_resp
     </section>
 
     <!-- ══════════════════════════════════════════════════════════════
-         SLIDE 9: Human-in-the-Loop & Approval State Machine
+         SLIDE 11: Human-in-the-Loop & Approval State Machine
     ══════════════════════════════════════════════════════════════ -->
     <section class="slide" data-topic="HITL Governance">
       <div class="slide-badge badge-rose">Human-in-the-Loop</div>
@@ -1171,7 +1304,7 @@ validation = <span class="code-kw">await</span> response_validator.validate_resp
     </section>
 
     <!-- ══════════════════════════════════════════════════════════════
-         SLIDE 10: Production Cloud Infrastructure
+         SLIDE 12: Production Cloud Infrastructure
     ══════════════════════════════════════════════════════════════ -->
     <section class="slide" data-topic="Cloud Infrastructure">
       <div class="slide-badge badge-indigo">Cloud & CI/CD</div>
@@ -1218,45 +1351,44 @@ validation = <span class="code-kw">await</span> response_validator.validate_resp
     </section>
 
     <!-- ══════════════════════════════════════════════════════════════
-         SLIDE 11: Summary & Key Takeaways
+         SLIDE 13: Summary & Key Takeaways
     ══════════════════════════════════════════════════════════════ -->
     <section class="slide title-slide" data-topic="Summary & Takeaways">
       <div class="slide-badge badge-emerald">Key Takeaways</div>
-      <h2 class="title-headline" style="font-size: 38px;">The 5 Pillars of Enterprise Autonomous AI</h2>
+      <h2 class="title-headline" style="font-size: 38px;">The 6 Pillars of Enterprise Autonomous AI</h2>
       <p class="title-subhead">
-        A blueprint for deploying AI agents in heavily regulated financial environments.
+        A battle-tested blueprint for deploying LLM multi-agent systems in heavily regulated wealth management environments.
       </p>
 
       <div class="grid-3" style="text-align: left; width: 100%; margin-bottom: 24px;">
-        <div class="feature-card" style="--card-accent: var(--cyan);">
-          <div class="card-title">1. Deterministic Math First</div>
-          <div class="card-desc">AI advises, but strict financial calculations and compliance rules never rely on probabilistic tokens.</div>
-        </div>
-
-        <div class="feature-card" style="--card-accent: var(--indigo);">
-          <div class="card-icon" style="display:none;"></div>
-          <div class="card-title">2. Open Protocols</div>
-          <div class="card-desc">A2A and MCP decouple agent services, making tools and capabilities reusable across any LLM orchestrator.</div>
-        </div>
-
         <div class="feature-card" style="--card-accent: var(--rose);">
-          <div class="card-title">3. Multi-Layer Guardrails</div>
-          <div class="card-desc">Model armor blocks injection attacks; Pydantic schema validation prevents hallucinated recommendations.</div>
+          <div class="card-title">1. Cloud Armor Perimeter WAF</div>
+          <div class="card-desc">Edge inspection with OWASP Core Rulesets (SQLi/XSS/LFI) and IP rate limiting at the ALB.</div>
         </div>
 
         <div class="feature-card" style="--card-accent: var(--amber);">
-          <div class="card-title">4. Scoped Memory</div>
-          <div class="card-desc">Tenant-isolated memory banks maintain long-term personalization with zero cross-tenant bleeding.</div>
+          <div class="card-title">2. Model Armor GenAI Shield</div>
+          <div class="card-desc">Fail-closed prompt injection/jailbreak screening; suppresses unvetted approval tokens instantly.</div>
+        </div>
+
+        <div class="feature-card" style="--card-accent: var(--cyan);">
+          <div class="card-title">3. Agent Gateway Egress</div>
+          <div class="card-desc">Gemini Enterprise Agent Platform mediating tool invocations with Agent Registry & SPIFFE UAP identities.</div>
+        </div>
+
+        <div class="feature-card" style="--card-accent: var(--indigo);">
+          <div class="card-title">4. Open Protocols (A2A + MCP)</div>
+          <div class="card-desc">Decoupled microservices via standard Agent-to-Agent and Model Context Protocol interfaces.</div>
         </div>
 
         <div class="feature-card" style="--card-accent: var(--emerald);">
-          <div class="card-title">5. Cryptographic HITL</div>
-          <div class="card-desc">No trade executes without verified advisor approval backed by an immutable SHA-256 audit trail.</div>
+          <div class="card-title">5. Scoped Contextual Memory</div>
+          <div class="card-desc">Tenant-isolated memory banks with top-5 capping, contradiction detection, and full CRUD revocation.</div>
         </div>
 
         <div class="feature-card" style="--card-accent: var(--purple);">
-          <div class="card-title">6. Full Observability</div>
-          <div class="card-desc">Distributed traces and real-time BigQuery streaming deliver end-to-end operational visibility.</div>
+          <div class="card-title">6. Cryptographic HITL Audit</div>
+          <div class="card-desc">Zero autonomous execution; advisor approvals cryptographically verified via SHA-256 payload hashes.</div>
         </div>
       </div>
 
@@ -1274,7 +1406,7 @@ validation = <span class="code-kw">await</span> response_validator.validate_resp
     <button class="hud-btn" id="btn-prev" title="Previous Slide (← / PageUp)">◀</button>
     
     <div class="hud-counter">
-      <span id="current-slide-num">01</span> / <span id="total-slides-num">11</span>
+      <span id="current-slide-num">01</span> / <span id="total-slides-num">13</span>
     </div>
 
     <button class="hud-btn" id="btn-next" title="Next Slide (→ / Space / PageDown)">▶</button>
