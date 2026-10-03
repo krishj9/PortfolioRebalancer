@@ -29,11 +29,12 @@ Paths are relative to the repo root. "New" means the file doesn't exist yet.
 - **Status:** **PASSED** (2026-10-03). Deployed to `projects/754915077075/locations/us-central1/reasoningEngines/6104962996679737344`. SDK: `google-cloud-aiplatform==2.3.0` (`agentplatform.Client`). Successfully queried remotely with `status: SUCCESS` and verified state transitions. State schema must be defined inside `set_up()` to preserve PEP 649 deferred annotations on Linux container; `query()` requires explicit parameter types.
 - **Test:** manual script · **Effort:** M
 
-### P0-04 Spike: Sessions + Memory Bank via API, and region choice
+### P0-04 Spike: Sessions + Memory Bank via API, and region choice [COMPLETED]
 - **Goal:** Verify the non-ADK API flow and regional availability.
-- **Files:** `spikes/context_api/`
+- **Files:** `spikes/context_api/` (test_context_flow.py, README.md)
 - **Scope:** Create a session, append 2 events, generate memories from the session with scope `{"user_id":"demo"}`, retrieve them, and delete one. Record the exact SDK method names. Check that the chosen region supports Runtime, Sessions, Memory Bank, and Agent Gateway.
 - **Deps:** P0-03 · **Accept:** method names and region recorded in `architecture.md` §7. UNVERIFIED tags updated.
+- **Status:** **PASSED** (2026-10-03). Script `test_context_flow.py` verified end-to-end lifecycle on `mybrightday-dev` in `us-central1`: `client.sessions.create`, `.events.append`, `.events.list`, `.delete`; `client.memory_banks.memories.generate`, `.get`, `.retrieve`, `.delete`. Confirmed `us-central1` supports Runtime, Sessions, Memory Bank, and Agent Gateway. `architecture.md` §7 updated.
 - **Test:** script · **Effort:** M
 
 ### P0-05 Spike: Agent Gateway tool registration for Cloud Run

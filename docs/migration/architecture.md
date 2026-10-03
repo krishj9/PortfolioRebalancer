@@ -136,9 +136,14 @@ Single policy: OWASP preconfigured `sqli`/`xss` rules in preview→enforce, one 
 | Model Armor with Agent Gateway | https://docs.cloud.google.com/gemini-enterprise-agent-platform/govern/configure-model-armor |
 | PSC interface for Agent Runtime egress | https://docs.cloud.google.com/gemini-enterprise-agent-platform/scale/runtime/private-service-connect-interface |
 | Terraform for Agent Runtime (reasoning engine, SA, IAM, Secret Manager) | https://docs.cloud.google.com/gemini-enterprise-agent-platform/scale/runtime/use-terraform |
-| Agent traces (Cloud Trace, Telemetry API) | https://docs.cloud.google.com/gemini-enterprise-agent-platform/optimize/observability/traces |
+| Spike P0-03 & P0-04 findings: LangGraph StateGraph on Runtime, Sessions, Memory Bank (`us-central1`) | Verified live in project `mybrightday-dev` (commit `5b53470`, spikes in `spikes/`) |
 
-UNVERIFIED items (each has a Phase 0/3 task): region availability of Gateway and Memory Bank; Gateway support for non-MCP Cloud Run endpoints; agent-identity principal for `run.invoker`; Terraform for Gateway/Registry/Model Armor template; Memory Bank topic config and delete method names; trace propagation into Runtime; PSC→internal Cloud Run routing.
+VERIFIED in Phase 0 spikes:
+- `us-central1` supports Agent Runtime, Sessions API, Memory Bank, and Agent Gateway (`networkservices.googleapis.com`).
+- Direct API method names: `client.sessions.create`, `client.sessions.events.append`, `client.sessions.events.list`, `client.sessions.delete`; `client.memory_banks.memories.generate`, `.get`, `.retrieve`, `.delete`.
+- LangGraph custom-template deployment: `client.runtimes.create`, `client.runtimes.update`; state schema must be declared in `set_up()` for Python 3.14 deferred annotation evaluation; `query()` requires typed parameters.
+
+Remaining UNVERIFIED items (each has a Phase 0/3 task): Gateway support for non-MCP Cloud Run endpoints [P0-05]; agent-identity principal for `run.invoker` [P0-05]; Terraform for Gateway/Registry/Model Armor template [P3-02]; trace propagation into Runtime [P0-06]; PSC→internal Cloud Run routing [P3-03].
 
 ## 8. Deployment, rollback, teardown (summary)
 
