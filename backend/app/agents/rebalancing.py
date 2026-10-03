@@ -334,3 +334,7 @@ class PortfolioRebalancingAgent:
         except Exception as e:
             logger.error(f"Drift consistency validation failed: {e}")
             return False
+
+
+# Standard alias
+RebalancingAgent = PortfolioRebalancingAgent

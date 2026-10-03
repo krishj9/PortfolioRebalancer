@@ -1,0 +1,39 @@
+{
+  "include": [
+    "backend",
+    "remote-agents",
+    "mcp-servers"
+  ],
+  "exclude": [
+    "**/node_modules",
+    "**/__pycache__",
+    ".venv"
+  ],
+  "extraPaths": [
+    "backend",
+    "remote-agents/research-agent",
+    "mcp-servers/sentiment"
+  ],
+  "executionEnvironments": [
+    {
+      "root": "remote-agents/research-agent",
+      "extraPaths": [
+        "backend",
+        "remote-agents/research-agent"
+      ]
+    },
+    {
+      "root": "mcp-servers/sentiment",
+      "extraPaths": [
+        "backend",
+        "mcp-servers/sentiment"
+      ]
+    },
+    {
+      "root": "backend",
+      "extraPaths": [
+        "backend"
+      ]
+    }
+  ]
+}

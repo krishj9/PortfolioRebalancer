@@ -38,3 +38,7 @@ class HumanApprovalWorkflowAgent:
     def _hash_recommendation(self, recommendation: RecommendationPackage) -> str:
         payload = recommendation.model_dump_json()
         return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+# Standard alias
+HumanApprovalAgent = HumanApprovalWorkflowAgent

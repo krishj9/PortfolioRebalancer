@@ -308,3 +308,7 @@ class RiskComplianceAgent:
         except Exception as e:
             logger.error(f"Corrective actions recommendation failed: {e}", exc_info=True)
             return None
+
+
+# Standard alias
+RiskAgent = RiskComplianceAgent

@@ -307,3 +307,8 @@ class TradeExecutionProposalAgent:
         except Exception as e:
             logger.error(f"Estimated impact explanation failed: {e}", exc_info=True)
             return None
+
+
+# Standard aliases
+TradeProposalAgent = TradeExecutionProposalAgent
+TradeExecutionAgent = TradeExecutionProposalAgent

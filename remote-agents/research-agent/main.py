@@ -16,7 +16,18 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
 # Add backend to path for imports
-sys.path.insert(0, str(Path(__file__).parent.parent.parent / "backend"))
+backend_dir = Path(__file__).resolve().parent.parent.parent / "backend"
+if str(backend_dir) not in sys.path:
+    sys.path.insert(0, str(backend_dir))
+
+# Ensure app package includes backend/app if local app package was resolved first
+try:
+    import app
+    backend_app = backend_dir / "app"
+    if backend_app.is_dir() and hasattr(app, "__path__") and str(backend_app) not in app.__path__:
+        app.__path__.append(str(backend_app))
+except Exception:
+    pass
 
 from app.adapters.bedrock import BedrockModelAdapter
 from app.adapters.prompts import PromptTemplateLoader

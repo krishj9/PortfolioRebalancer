@@ -206,3 +206,7 @@ class SentimentAnalysisAgent:
             "all_themes": all_themes,
             "summary": f"Aggregated sentiment across {len(symbol_sentiments)} symbols",
         }
+
+
+# Standard alias
+SentimentAgent = SentimentAnalysisAgent

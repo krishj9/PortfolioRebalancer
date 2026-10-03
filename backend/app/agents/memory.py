@@ -351,3 +351,7 @@ class MemoryPersonalizationAgent:
         except Exception as e:
             logger.error(f"Conflict detection failed: {e}", exc_info=True)
             return None
+
+
+# Standard alias
+MemoryAgent = MemoryPersonalizationAgent

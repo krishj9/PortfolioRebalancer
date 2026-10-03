@@ -1,9 +1,13 @@
 {
   "python.defaultInterpreterPath": "${workspaceFolder}/.venv/bin/python",
   "python.analysis.extraPaths": [
-    "${workspaceFolder}/backend"
+    "${workspaceFolder}/backend",
+    "${workspaceFolder}/remote-agents/research-agent",
+    "${workspaceFolder}/mcp-servers/sentiment"
   ],
   "python.autoComplete.extraPaths": [
-    "${workspaceFolder}/backend"
+    "${workspaceFolder}/backend",
+    "${workspaceFolder}/remote-agents/research-agent",
+    "${workspaceFolder}/mcp-servers/sentiment"
   ]
 }

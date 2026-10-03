@@ -59,3 +59,7 @@ class ResearchAgent:
             execution_location="in_process_fallback",
         )
         return stage, payload
+
+
+# Standard alias
+MarketResearchAgent = ResearchAgent
