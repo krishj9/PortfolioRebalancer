@@ -76,6 +76,15 @@ def create_app() -> FastAPI:
     app.include_router(preferences_router, prefix="/api")
     app.include_router(rebalance_router, prefix="/api")
     app.include_router(tools_router)
+
+    # Backward compatibility for direct endpoints without /api prefix
+    app.include_router(approvals_router)
+    app.include_router(explain_router)
+    app.include_router(intelligence_router)
+    app.include_router(market_router)
+    app.include_router(portfolios_router)
+    app.include_router(preferences_router)
+    app.include_router(rebalance_router)
     return app
 
 

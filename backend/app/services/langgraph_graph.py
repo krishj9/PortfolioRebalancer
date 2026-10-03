@@ -9,6 +9,7 @@ from langgraph.graph.state import CompiledStateGraph
 
 from app.contracts.workflow import OrchestrationResponse, PortfolioRebalanceRequest
 from app.persistence.memory_store import WorkflowStore
+from app.tools.client import ToolClient
 from app.services.langgraph_nodes import (
     apply_output_guardrails,
     assemble_recommendation,
@@ -35,16 +36,21 @@ logger = logging.getLogger(__name__)
 # ============================================================================
 
 
-def build_workflow_graph(store: Optional[WorkflowStore] = None) -> CompiledStateGraph:
+def build_workflow_graph(
+    store: Optional[WorkflowStore] = None,
+    tool_client: Optional[ToolClient] = None,
+) -> CompiledStateGraph:
     """
     Build LangGraph workflow with all nodes and edges.
 
     Args:
         store: Optional persistence store for operational records and audit events
+        tool_client: Optional tool client for calculations and remote persistence
 
     Returns:
         Compiled StateGraph ready for execution
     """
+    effective_tool_client = tool_client or ToolClient(store=store)
     graph = StateGraph(WorkflowGraphState)
 
     # ========================================================================
@@ -56,18 +62,25 @@ def build_workflow_graph(store: Optional[WorkflowStore] = None) -> CompiledState
     graph.add_node("initialize_context_and_trace", initialize_context_and_trace)
     graph.add_node(
         "log_request_audit_event",
-        functools.partial(log_request_audit_event, store=store)
-        if store is not None
-        else log_request_audit_event,
+        functools.partial(log_request_audit_event, store=store, tool_client=effective_tool_client),
     )
 
     # Agent execution nodes
     graph.add_node("hydrate_memory", hydrate_memory_node)
     graph.add_node("run_research", _placeholder_research_node)
     graph.add_node("run_sentiment_analysis", _placeholder_sentiment_node)
-    graph.add_node("run_portfolio_rebalancing", _placeholder_rebalancing_node)
-    graph.add_node("run_risk_policy", _placeholder_risk_node)
-    graph.add_node("generate_execution_proposal", _placeholder_trade_proposal_node)
+    graph.add_node(
+        "run_portfolio_rebalancing",
+        functools.partial(_placeholder_rebalancing_node, tool_client=effective_tool_client),
+    )
+    graph.add_node(
+        "run_risk_policy",
+        functools.partial(_placeholder_risk_node, tool_client=effective_tool_client),
+    )
+    graph.add_node(
+        "generate_execution_proposal",
+        functools.partial(_placeholder_trade_proposal_node, tool_client=effective_tool_client),
+    )
 
     # Output processing
     graph.add_node("assemble_recommendation", assemble_recommendation)
@@ -75,15 +88,11 @@ def build_workflow_graph(store: Optional[WorkflowStore] = None) -> CompiledState
     graph.add_node("create_approval_artifact", create_approval_artifact)
     graph.add_node(
         "persist_workflow_artifacts",
-        functools.partial(persist_workflow_artifacts, store=store)
-        if store is not None
-        else persist_workflow_artifacts,
+        functools.partial(persist_workflow_artifacts, store=store, tool_client=effective_tool_client),
     )
     graph.add_node(
         "emit_workflow_audit_event",
-        functools.partial(emit_workflow_audit_event, store=store)
-        if store is not None
-        else emit_workflow_audit_event,
+        functools.partial(emit_workflow_audit_event, store=store, tool_client=effective_tool_client),
     )
     graph.add_node("return_response", return_response)
 
@@ -256,7 +265,9 @@ async def _placeholder_sentiment_node(state: WorkflowGraphState) -> dict:
         }
 
 
-async def _placeholder_rebalancing_node(state: WorkflowGraphState) -> dict:
+async def _placeholder_rebalancing_node(
+    state: WorkflowGraphState, tool_client: Optional[ToolClient] = None
+) -> dict:
     """Execute Portfolio Rebalancing Agent with deterministic drift calculation."""
     logger.info(f"Rebalancing agent for {state['request_id']}")
 
@@ -272,9 +283,10 @@ async def _placeholder_rebalancing_node(state: WorkflowGraphState) -> dict:
             bedrock_adapter=get_model_adapter(),
             prompt_loader=PromptTemplateLoader(),
             validator=ResponseValidator(),
+            tool_client=tool_client,
         )
     else:
-        agent = PortfolioRebalancingAgent()
+        agent = PortfolioRebalancingAgent(tool_client=tool_client)
     stage_result, payload = await agent.run(state["request"])
     return {
         "rebalancing_output": payload,
@@ -282,7 +294,9 @@ async def _placeholder_rebalancing_node(state: WorkflowGraphState) -> dict:
     }
 
 
-async def _placeholder_risk_node(state: WorkflowGraphState) -> dict:
+async def _placeholder_risk_node(
+    state: WorkflowGraphState, tool_client: Optional[ToolClient] = None
+) -> dict:
     """Execute Risk & Compliance Agent with deterministic policy evaluation."""
     logger.info(f"Risk agent for {state['request_id']}")
 
@@ -301,9 +315,10 @@ async def _placeholder_risk_node(state: WorkflowGraphState) -> dict:
             bedrock_adapter=get_model_adapter(),
             prompt_loader=PromptTemplateLoader(),
             validator=ResponseValidator(),
+            tool_client=tool_client,
         )
     else:
-        agent = RiskComplianceAgent()
+        agent = RiskComplianceAgent(tool_client=tool_client)
     stage_result, result = await agent.run(
         request.portfolio_snapshot, drift, request.risk_profile
     )
@@ -313,7 +328,9 @@ async def _placeholder_risk_node(state: WorkflowGraphState) -> dict:
     }
 
 
-async def _placeholder_trade_proposal_node(state: WorkflowGraphState) -> dict:
+async def _placeholder_trade_proposal_node(
+    state: WorkflowGraphState, tool_client: Optional[ToolClient] = None
+) -> dict:
     """Execute Trade Execution Proposal Agent with real deterministic logic."""
     logger.info(f"Trade proposal agent for {state['request_id']}")
 
@@ -342,9 +359,10 @@ async def _placeholder_trade_proposal_node(state: WorkflowGraphState) -> dict:
                 bedrock_adapter=get_model_adapter(),
                 prompt_loader=PromptTemplateLoader(),
                 validator=ResponseValidator(),
+                tool_client=tool_client,
             )
         else:
-            agent = TradeExecutionProposalAgent()
+            agent = TradeExecutionProposalAgent(tool_client=tool_client)
 
         stage_result, proposal = await agent.run(request.portfolio_snapshot, risk_policy)
         return {
@@ -369,10 +387,15 @@ async def _placeholder_trade_proposal_node(state: WorkflowGraphState) -> dict:
 class LangGraphOrchestrator:
     """LangGraph-based orchestrator for portfolio rebalancing workflow."""
 
-    def __init__(self, store: Optional[WorkflowStore] = None):
-        """Initialize orchestrator with compiled graph and optional persistence store."""
+    def __init__(
+        self,
+        store: Optional[WorkflowStore] = None,
+        tool_client: Optional[ToolClient] = None,
+    ):
+        """Initialize orchestrator with compiled graph and optional persistence store / tool client."""
         self.store = store
-        self.graph = build_workflow_graph(store=store)
+        self.tool_client = tool_client or ToolClient(store=store)
+        self.graph = build_workflow_graph(store=store, tool_client=self.tool_client)
         logger.info("LangGraph orchestrator initialized")
 
     async def run(self, request: PortfolioRebalanceRequest) -> OrchestrationResponse:

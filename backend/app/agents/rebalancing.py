@@ -37,10 +37,12 @@ class PortfolioRebalancingAgent:
         bedrock_adapter: Optional[BedrockModelAdapter] = None,
         prompt_loader: Optional[PromptTemplateLoader] = None,
         validator: Optional[ResponseValidator] = None,
+        tool_client: Optional[Any] = None,
     ):
         self.bedrock_adapter = bedrock_adapter
         self.prompt_loader = prompt_loader
         self.validator = validator
+        self.tool_client = tool_client
         
         # Load configuration
         self.feature_flags = get_feature_flags()
@@ -71,8 +73,15 @@ class PortfolioRebalancingAgent:
         """
         try:
             # Always calculate drift deterministically
-            current_allocation = calculate_asset_allocation(request.portfolio_snapshot)
-            drift = calculate_drift(request.portfolio_snapshot, request.allocation_target)
+            if self.tool_client:
+                drift_resp = await self.tool_client.compute_drift(
+                    request.portfolio_snapshot, request.allocation_target
+                )
+                current_allocation = drift_resp.current_allocation
+                drift = drift_resp.drift
+            else:
+                current_allocation = calculate_asset_allocation(request.portfolio_snapshot)
+                drift = calculate_drift(request.portfolio_snapshot, request.allocation_target)
             out_of_tolerance = [item for item in drift if not item.within_tolerance]
             
             # Base payload with deterministic calculations

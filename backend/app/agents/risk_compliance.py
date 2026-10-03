@@ -41,10 +41,12 @@ class RiskComplianceAgent:
         bedrock_adapter: Optional[BedrockModelAdapter] = None,
         prompt_loader: Optional[PromptTemplateLoader] = None,
         validator: Optional[ResponseValidator] = None,
+        tool_client: Optional[Any] = None,
     ):
         self.bedrock_adapter = bedrock_adapter
         self.prompt_loader = prompt_loader
         self.validator = validator
+        self.tool_client = tool_client
         
         # Load configuration
         self.feature_flags = get_feature_flags()
@@ -78,7 +80,10 @@ class RiskComplianceAgent:
         """
         try:
             # Always evaluate policy deterministically
-            result = evaluate_policy(snapshot, drift, risk_profile)
+            if self.tool_client:
+                result = await self.tool_client.evaluate_policy(snapshot, drift, risk_profile)
+            else:
+                result = evaluate_policy(snapshot, drift, risk_profile)
             
             # Add LLM-enhanced explanation if enabled
             if self.feature_flags.risk_agent_llm_enabled and self.bedrock_adapter:

@@ -96,7 +96,9 @@ async def initialize_context_and_trace(state: WorkflowGraphState) -> dict:
 
 
 async def log_request_audit_event(
-    state: WorkflowGraphState, store: Optional[WorkflowStore] = None
+    state: WorkflowGraphState,
+    store: Optional[WorkflowStore] = None,
+    tool_client: Optional[Any] = None,
 ) -> dict:
     """
     Log request received audit event and save portfolio.
@@ -104,6 +106,7 @@ async def log_request_audit_event(
     Args:
         state: Current workflow state
         store: Optional injected persistence store
+        tool_client: Optional injected tool client
 
     Returns:
         Delta dictionary with audit event ID
@@ -113,13 +116,22 @@ async def log_request_audit_event(
     request = state["request"]
     event_id = f"audit-{state['request_id']}-request-received"
 
-    if store is not None:
+    if tool_client is not None:
+        await tool_client.audit(
+            event_type="REQUEST_RECEIVED",
+            correlation=request.correlation,
+            actor_id=request.actor.actor_id,
+            outcome="ACCEPTED" if not state.get("validation_error") else "REJECTED",
+        )
+    elif store is not None:
         store.add_audit_event(
             event_type="REQUEST_RECEIVED",
             correlation=request.correlation,
             actor_id=request.actor.actor_id,
             outcome="ACCEPTED" if not state.get("validation_error") else "REJECTED",
         )
+
+    if store is not None:
         store.save_portfolio(
             PortfolioRecord(
                 client_profile=request.client_profile,
@@ -270,7 +282,9 @@ async def create_approval_artifact(state: WorkflowGraphState) -> dict:
 
 
 async def persist_workflow_artifacts(
-    state: WorkflowGraphState, store: Optional[WorkflowStore] = None
+    state: WorkflowGraphState,
+    store: Optional[WorkflowStore] = None,
+    tool_client: Optional[Any] = None,
 ) -> dict:
     """
     Persist workflow artifacts to storage.
@@ -278,6 +292,7 @@ async def persist_workflow_artifacts(
     Args:
         state: Current workflow state
         store: Optional injected persistence store
+        tool_client: Optional injected tool client
 
     Returns:
         Delta dictionary (empty)
@@ -285,14 +300,19 @@ async def persist_workflow_artifacts(
     logger.info(f"Persisting artifacts for {state['request_id']}")
 
     approval = state.get("approval_artifact")
-    if store is not None and approval is not None:
-        store.save_approval(approval)
+    if approval is not None:
+        if tool_client is not None:
+            await tool_client.persist_proposal(approval)
+        elif store is not None:
+            store.save_approval(approval)
 
     return {}
 
 
 async def emit_workflow_audit_event(
-    state: WorkflowGraphState, store: Optional[WorkflowStore] = None
+    state: WorkflowGraphState,
+    store: Optional[WorkflowStore] = None,
+    tool_client: Optional[Any] = None,
 ) -> dict:
     """
     Emit final workflow audit event.
@@ -300,6 +320,7 @@ async def emit_workflow_audit_event(
     Args:
         state: Current workflow state
         store: Optional injected persistence store
+        tool_client: Optional injected tool client
 
     Returns:
         Delta dictionary with audit event ID
@@ -310,14 +331,23 @@ async def emit_workflow_audit_event(
     approval = state.get("approval_artifact")
     event_id = f"audit-{state['request_id']}-workflow-completed"
 
-    if store is not None and approval is not None:
-        store.add_audit_event(
-            event_type="APPROVAL_ARTIFACT_CREATED",
-            correlation=request.correlation,
-            actor_id=request.actor.actor_id,
-            outcome=approval.approval_status,
-            details={"approval_id": approval.approval_id},
-        )
+    if approval is not None:
+        if tool_client is not None:
+            await tool_client.audit(
+                event_type="APPROVAL_ARTIFACT_CREATED",
+                correlation=request.correlation,
+                actor_id=request.actor.actor_id,
+                outcome=approval.approval_status,
+                details={"approval_id": approval.approval_id},
+            )
+        elif store is not None:
+            store.add_audit_event(
+                event_type="APPROVAL_ARTIFACT_CREATED",
+                correlation=request.correlation,
+                actor_id=request.actor.actor_id,
+                outcome=approval.approval_status,
+                details={"approval_id": approval.approval_id},
+            )
 
     return {"audit_event_ids": [event_id]}
 

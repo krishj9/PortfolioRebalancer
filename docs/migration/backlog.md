@@ -102,7 +102,8 @@ Paths are relative to the repo root. "New" means the file doesn't exist yet.
 - **Files:** new `backend/app/tools/client.py`, `backend/app/services/langgraph_graph.py` (rebalancing, risk, and proposal nodes; persist node)
 - **Scope:** `httpx` client with a Google ID token (audience = tools URL), timeout, and 1 retry on 5xx. `TOOL_MODE=inprocess|remote`, where `inprocess` keeps the current behavior. Agents still build the stage results.
 - **Deps:** P1-05 · **Accept:** graph parity test passes in both modes (remote mode against TestClient).
-- **Test:** `test_graph_parity.py` · **Effort:** M
+- **Status:** **PASSED** (2026-10-03). Implemented `ToolClient` in `backend/app/tools/client.py` supporting `inprocess` and `remote` modes, automatic Google OIDC ID token injection, 10s timeout, and 1 retry on 5xx errors (avoiding 4xx retries). Wired `ToolClient` into `PortfolioRebalancingAgent`, `RiskComplianceAgent`, `TradeExecutionProposalAgent`, and LangGraph nodes (`log_request_audit_event`, `run_portfolio_rebalancing`, `run_risk_policy`, `generate_execution_proposal`, `persist_workflow_artifacts`, `emit_workflow_audit_event`). Parameterized `test_graph_parity.py` across `inprocess` and `remote` (using `httpx.ASGITransport(app=app)`) with 100% exact trade and approval parity. Added 4 unit tests in `test_tool_client.py`.
+- **Test:** `test_graph_parity.py`, `test_tool_client.py` · **Effort:** M
 
 ### P1-07 Idempotent proposal persistence (D4)
 - **Goal:** Make repeated requests return the same proposal.
