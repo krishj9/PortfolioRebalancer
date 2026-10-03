@@ -47,19 +47,21 @@ Labels used in this document:
 
 Optional: `POST /api/explain/{approval_id}/explain` streams a Bedrock explanation.
 
-### 1.3 Defects found by static inspection [VERIFIED-CODE, not executed]
+### 1.3 Defects found by inspection & runtime execution [VERIFIED-CODE, confirmed in P0-02]
 
 | # | Defect | Location | Impact on migration |
 |---|---|---|---|
-| D1 | `create_approval_artifact` imports `ApprovalArtifact` from `app.contracts.domain`, but it's defined in `app.contracts.analysis`. It also passes fields (`request_id`, `session_id`, `created_at`) that don't match the contract | `langgraph_nodes.py:222-250` | The LangGraph path would fail at this node. Must fix before deploying the graph |
-| D2 | `persist_workflow_artifacts` and `emit_workflow_audit_event` only log | `langgraph_nodes.py:253-310` | The graph path doesn't persist anything |
+| D0a | `validate_request` performs `abs(total - 1.0) > 0.01` comparing `Decimal` (sum is `100`) against `float`, raising `TypeError` | `langgraph_nodes.py:44` | Initial validation step fails immediately on standard rebalance request |
+| D0b | `hydrate_memory` and `run_research` run in parallel but both return the full `state` dict rather than delta dicts, causing `InvalidUpdateError` on concurrent keys like `request_id` | `langgraph_graph.py:92-98`, `langgraph_nodes.py` | LangGraph parallel fan-out fails with `INVALID_CONCURRENT_GRAPH_UPDATE` |
+| D1 | `create_approval_artifact` imports `ApprovalArtifact` from `app.contracts.domain` (missing, raises `ImportError`) and passes mismatched fields (`request_id`, `session_id`, `created_at`) | `langgraph_nodes.py:222-250` | Approval artifact generation fails |
+| D2 | `persist_workflow_artifacts` and `emit_workflow_audit_event` only log | `langgraph_nodes.py:253-310` | The graph path doesn't persist anything to the store |
 | D3 | Agents call `self.bedrock_adapter.invoke(...)`, but the adapter defines only `invoke_model` | `agents/memory.py:182,251,312`, `trade_execution.py:170,230` (and others) | The LLM path silently falls back to deterministic output |
 | D4 | `approval_id` is random per request | `agents/human_approval.py` | Repeating a request creates duplicate proposals |
 | D5 | Actor is hardcoded (`local_owner`), and CORS is `*` | `main.py`, frontend | Needs basic auth for the cloud POC |
 
 ### 1.4 Tests
 
-I did **not** run the existing tests. The local interpreter is Python 3.14 without project dependencies (`fastapi` missing), and installing dependencies was out of scope. Task **P0-01** runs them first.
+Baseline test suite execution in Python 3.14 (`PERSISTENCE_MODE=memory`) was completed in task **P0-01** (22 passed, 11 pre-existing failures triaged). In task **P0-02**, `backend/tests/test_graph_parity.py` was created to prove sequential `Orchestrator` works as a baseline and LangGraph fails at the documented defects (D0a, D0b, D1).
 
 ### 1.5 Reuse classification [PROPOSAL]
 
