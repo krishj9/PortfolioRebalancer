@@ -16,12 +16,13 @@ COPY backend .
 # Install dependencies using uv
 RUN uv pip install --system -e . --no-cache
 
-# Expose port
-EXPOSE 8000
+# Expose port (default 8080 for Cloud Run, 8000 for local)
+EXPOSE 8080
 
-# Health check
+# Health check using Python standard library (no external requests dependency)
 HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
-  CMD python -c "import requests; requests.get('http://localhost:8000/health')" || exit 1
+  CMD python -c "import os, urllib.request; urllib.request.urlopen('http://localhost:' + os.environ.get('PORT', '8080') + '/health')" || exit 1
 
-# Run the application
-CMD ["python", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Run the application with dynamic PORT
+CMD ["sh", "-c", "exec uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8080}"]
+

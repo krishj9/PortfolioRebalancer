@@ -92,6 +92,12 @@ class WorkflowGraphState(TypedDict, total=False):
     error_stage: Optional[str]
 
 
+# Materialize __annotations__ as a plain dict to ensure cross-environment serialization
+# in Python 3.14 (PEP 649 deferred annotations) across macOS and Linux reasoning engines.
+WorkflowGraphState.__annotations__ = dict(WorkflowGraphState.__annotations__)
+
+
+
 # ============================================================================
 # State Initialization
 # ============================================================================

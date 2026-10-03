@@ -233,7 +233,7 @@ async def assemble_recommendation(state: WorkflowGraphState) -> dict:
     # Create recommendation package
     recommendation = RecommendationPackage(
         summary=_generate_summary(state, proposal.proposal_status),
-        agent_stages=list(state.get("agent_stages", [])),
+        agent_stages=[s.model_dump() if hasattr(s, "model_dump") else s for s in state.get("agent_stages", [])],
         current_allocation=current_allocation,
         target_allocation=target_allocation,
         proposed_allocation=proposed_allocation,

@@ -38,6 +38,9 @@ include = ["app*"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
+markers = [
+  "gcp: marks tests as requiring GCP credentials",
+]
 
 [tool.ruff]
 line-length = 100

@@ -1,7 +1,6 @@
 from functools import lru_cache
 
 from app.core.config import get_settings
-from app.persistence.dynamodb_store import DynamoDBWorkflowStore
 from app.persistence.memory_store import InMemoryWorkflowStore, WorkflowStore
 
 
@@ -14,4 +13,7 @@ def get_workflow_store() -> WorkflowStore:
         from app.persistence.firestore_store import FirestoreWorkflowStore
 
         return FirestoreWorkflowStore(settings)
+    from app.persistence.dynamodb_store import DynamoDBWorkflowStore
+
     return DynamoDBWorkflowStore(settings)
+

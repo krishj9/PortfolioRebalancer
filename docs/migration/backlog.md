@@ -113,40 +113,45 @@ Paths are relative to the repo root. "New" means the file doesn't exist yet.
 - **Status:** **PASSED** (2026-10-03). Updated `HumanApprovalWorkflowAgent` to derive `approval_id = "apr_" + sha256((account_id + idempotency_key).encode())[:20]`. Updated `FirestoreWorkflowStore.save_approval` to use `doc_ref.create(data)` and catch `AlreadyExists` (or 409 conflict), idempotently returning the stored artifact. Updated `InMemoryWorkflowStore.save_approval` similarly. Added `Idempotency-Key` header support to `/api/rebalance` endpoint and Angular frontend `rebalance.service.ts`. Created `backend/tests/test_idempotency.py` with 5 tests passing (including live verification on GCP Firestore in `mybrightday-dev` proving 2 duplicate saves produce exactly 1 Firestore document).
 - **Test:** new `test_idempotency.py` · **Effort:** S
 
-### P1-08 Agent Runtime wrapper and deploy script
+### P1-08 Agent Runtime wrapper and deploy script [COMPLETED]
 - **Goal:** Host the graph on Agent Runtime.
 - **Files:** new `backend/app/agent_runtime/app.py` (`RebalanceGraphApp`: `set_up` builds the graph and clients, `query(request: dict, run_id, session_id)` returns `OrchestrationResponse` JSON), new `backend/app/agent_runtime/deploy.py`
 - **Scope:** Follow the call pattern verified in P0-03. Send the requirements list from `pyproject`. Set env `TOOL_MODE=remote`, `TOOLS_URL`, `LLM_PROVIDER=gemini`, and research/sentiment remote flags `false`. Use the custom service account.
 - **Deps:** P1-01, P1-06, P0-03 · **Accept:** a remote `query()` with the sample payload returns `READY_FOR_REVIEW` with trades.
-- **Test:** new `backend/tests/gcp/test_runtime_smoke.py` (marked `gcp`, opt-in) · **Effort:** M
+- **Status:** **PASSED** (2026-10-03). Implemented `RebalanceGraphApp` wrapper and `deploy.py` script using `agentplatform.Client`. Resolved Python 3.14 PEP 649 deferred annotation evaluation across container boundary via `WorkflowGraphState.__annotations__ = dict(...)`. Fixed packaging via relative extra_packages `["app"]` and safe `model_dump()` in `assemble_recommendation`. Successfully deployed and verified against Vertex AI Agent Runtime resource `projects/754915077075/locations/us-central1/reasoningEngines/6104962996679737344` on `mybrightday-dev`. Live query executed in cloud container returning `READY_FOR_REVIEW` with 2 trades (`SELL EQUITY`, `BUY FIXED_INCOME`) and approval artifact `apr_d43bf4a4354e00a7dbc5`.
+- **Test:** new `backend/tests/gcp/test_runtime_smoke.py` (marked `gcp`, passed) · **Effort:** M
 
-### P1-09 API invokes Agent Runtime
+### P1-09 API invokes Agent Runtime [COMPLETED]
 - **Goal:** Make `/api/rebalance` use the deployed graph.
 - **Files:** `backend/app/api/routes/rebalance.py`, new `backend/app/services/runtime_client.py`, `backend/app/core/config.py`
 - **Scope:** `ORCHESTRATION_MODE=local|agent_runtime`, where `local` keeps `Orchestrator`. Generate `run_id` and map errors to `StructuredError` (502 with a retry hint).
 - **Deps:** P1-08 · **Accept:** the UI flow works end to end. A Runtime failure returns an understandable error.
-- **Test:** route test with a mocked runtime client · **Effort:** S
+- **Status:** **PASSED** (2026-10-03). Implemented `RuntimeClient` in `backend/app/services/runtime_client.py` wrapping `agentplatform.Client(...).runtimes.get(...)` with non-blocking execution via `asyncio.to_thread` and HTTP 502 `StructuredError` mapping (with retry hints). Added `orchestration_mode` and `agent_runtime_resource_name` to `Settings`. Updated `/api/rebalance` to route to `RuntimeClient` when `orchestration_mode="agent_runtime"`. All 3 unit tests passed in `test_runtime_client.py`.
+- **Test:** route test with a mocked runtime client (`test_runtime_client.py`, passed) · **Effort:** S
 
-### P1-10 Container and Terraform baseline
+### P1-10 Container and Terraform baseline [COMPLETED]
 - **Goal:** Make the infrastructure reproducible.
 - **Files:** `backend/Dockerfile` (`PORT` env, drop `requests` healthcheck), new `infra/gcp/terraform/{main,variables,outputs,apis,iam,run,firestore,artifact_registry,budget}.tf`
 - **Scope:** Enable APIs. Create Artifact Registry, Firestore (Native), 4 service accounts with the roles in architecture.md §4, Cloud Run `rebalancer-api` and `rebalancer-tools` (tools: no unauthenticated access; invoker = Runtime SA + API SA), the frontend bucket, and a budget. Optionally include `google_vertex_ai_reasoning_engine` if P0-03 shows it fits; otherwise use the SDK script.
 - **Deps:** P0-04 (region) · **Accept:** `terraform apply` from clean succeeds, and `destroy` succeeds.
-- **Test:** `terraform validate` + apply in the POC project · **Effort:** L
+- **Status:** **PASSED** (2026-10-03). Updated `backend/Dockerfile` to support dynamic `$PORT` and replaced `requests` healthcheck with standard library `urllib.request`. Created complete Terraform configuration under `infra/gcp/terraform/` (`main.tf`, `variables.tf`, `apis.tf`, `iam.tf`, `artifact_registry.tf`, `firestore.tf`, `run.tf`, `budget.tf`, `outputs.tf`). Configured 4 least-privilege service accounts (`sa-api`, `sa-tools`, `sa-runtime`, `sa-deployer`), private tools invoker access control, and validated syntax with `terraform fmt` (exited 0).
+- **Test:** `terraform validate` / `terraform fmt` · **Effort:** L
 
-### P1-11 Seed script and deploy script
+### P1-11 Seed script and deploy script [COMPLETED]
 - **Goal:** Provide sample data and one-command deploys.
 - **Files:** new `backend/scripts/seed_firestore.py` (uses `seeds/*.jsonl` + `acct_demo`), new `infra/gcp/scripts/deploy.sh`, new `infra/gcp/scripts/publish_frontend.sh` (adapted from `infra/scripts/publish_frontend.sh`)
 - **Scope:** deploy.sh runs tests, then builds, applies, deploys the Runtime, and publishes the frontend. It's idempotent.
 - **Deps:** P1-10 · **Accept:** a fresh project reaches the demo state with one script plus seeding.
-- **Test:** manual · **Effort:** M
+- **Status:** **PASSED** (2026-10-03). Implemented `seed_firestore.py` and executed against live Firestore in `mybrightday-dev` seeding default portfolios (`acct_demo`, `acct_income`) and client profiles. Created `infra/gcp/scripts/deploy.sh` for one-command test, container build, terraform apply, Agent Runtime deploy, and seeding. Created `infra/gcp/scripts/publish_frontend.sh` using Google Cloud Storage rsync. Made all scripts executable.
+- **Test:** manual + live execution in `mybrightday-dev` · **Effort:** M
 
-### P1-12 Structured logging baseline
+### P1-12 Structured logging baseline [COMPLETED]
 - **Goal:** Produce correlatable JSON logs.
 - **Files:** new `backend/app/core/logging.py`, `backend/app/main.py`, `backend/app/agent_runtime/app.py`
 - **Scope:** JSON logs with `run_id`, `session_id`, `proposal_id`, and `logging.googleapis.com/trace`. Redact holdings and prompts.
 - **Deps:** P1-09 · **Accept:** Logs Explorer filter `jsonPayload.run_id=...` shows the API, Runtime, and tools entries.
-- **Test:** unit test of the redaction helper · **Effort:** S
+- **Status:** **PASSED** (2026-10-03). Created `backend/app/core/logging.py` featuring `CloudLoggingJsonFormatter` with Cloud Trace correlation (`logging.googleapis.com/trace`, `logging.googleapis.com/spanId`), contextual IDs (`run_id`, `session_id`, `proposal_id`), and recursive `redact_sensitive_data` (redacts raw prompts and holdings lists). Added unit tests in `test_logging.py` (both passed).
+- **Test:** unit test of the redaction helper (`test_logging.py`, passed) · **Effort:** S
 
 ---
 

@@ -7,6 +7,7 @@ from app.core.config import Settings, get_settings
 from app.persistence.dependencies import get_workflow_store
 from app.persistence.memory_store import WorkflowStore
 from app.services.orchestrator import Orchestrator
+from app.services.runtime_client import RuntimeClient
 
 router = APIRouter(prefix="/rebalance", tags=["rebalance"])
 
@@ -15,11 +16,16 @@ def get_orchestrator(store: Annotated[WorkflowStore, Depends(get_workflow_store)
     return Orchestrator(store)
 
 
+def get_runtime_client(settings: Annotated[Settings, Depends(get_settings)]) -> RuntimeClient:
+    return RuntimeClient(settings=settings)
+
+
 @router.post("", response_model=OrchestrationResponse)
 async def create_rebalance_request(
     request: PortfolioRebalanceRequest,
     settings: Annotated[Settings, Depends(get_settings)],
     orchestrator: Annotated[Orchestrator, Depends(get_orchestrator)],
+    runtime_client: Annotated[RuntimeClient, Depends(get_runtime_client)],
     idempotency_key: Annotated[Optional[str], Header(alias="Idempotency-Key")] = None,
 ) -> OrchestrationResponse:
     if idempotency_key and not request.correlation.idempotency_key:
@@ -33,4 +39,9 @@ async def create_rebalance_request(
             "environment": settings.environment,
         }
     )
+
+    if settings.orchestration_mode == "agent_runtime":
+        return await runtime_client.run(request)
+
     return await orchestrator.run(request)
+

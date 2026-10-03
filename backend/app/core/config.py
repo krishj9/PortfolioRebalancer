@@ -207,6 +207,16 @@ class Settings(BaseSettings):
     tool_mode: str = Field(default="inprocess", description="Tool execution mode: inprocess or remote")
     tools_url: str = Field(default="http://localhost:8000", description="Base URL of deterministic tool service")
 
+    # Orchestration configuration (Agent Runtime vs local)
+    orchestration_mode: str = Field(
+        default="local",
+        description="Workflow orchestration mode: local or agent_runtime",
+    )
+    agent_runtime_resource_name: str = Field(
+        default="",
+        description="Resource name of deployed Vertex AI Agent Runtime",
+    )
+
     # Market stream
     market_stream_max_events: int = 0
     seed_default_portfolios: bool = True
