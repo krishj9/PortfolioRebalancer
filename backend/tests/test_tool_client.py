@@ -216,3 +216,21 @@ async def test_tool_client_no_retry_on_4xx():
         await client._post_with_retry("compute_drift", {})
     assert exc_info.value.response.status_code == 400
     assert mock_http_client.post.call_count == 1
+
+
+@pytest.mark.asyncio
+async def test_tool_client_retry_exhaustion_raises():
+    """Verify ToolClient raises last_exception when retries are exhausted on repeated 500s."""
+    mock_http_client = AsyncMock()
+    resp_500 = httpx.Response(
+        status_code=500,
+        request=httpx.Request("POST", "http://test/tools/compute_drift"),
+        text="Internal Server Error",
+    )
+    mock_http_client.post.return_value = resp_500
+    client = ToolClient(mode="remote", base_url="http://test", http_client=mock_http_client)
+
+    with pytest.raises(httpx.HTTPStatusError) as exc_info:
+        await client._post_with_retry("compute_drift", {})
+    assert exc_info.value.response.status_code == 500
+    assert mock_http_client.post.call_count == 2

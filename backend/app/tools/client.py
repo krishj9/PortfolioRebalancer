@@ -95,7 +95,7 @@ class ToolClient:
         from app.adapters.telemetry import telemetry_span
 
         url = f"{self.base_url}/tools/{endpoint}"
-        last_exception = None
+        last_exception: Optional[Exception] = None
 
         with telemetry_span(f"tool.{endpoint}", attributes={"tool.endpoint": endpoint, "tool.url": url}):
             headers = self._get_headers()
@@ -130,16 +130,16 @@ class ToolClient:
                         logger.warning(f"Tool endpoint {endpoint} failed: {e}, retrying...")
                         await asyncio.sleep(0.5)
                         continue
-                    raise e
                 except Exception as e:
                     last_exception = e
                     if attempt == 0:
                         logger.warning(f"Tool endpoint {endpoint} failed: {e}, retrying...")
                         await asyncio.sleep(0.5)
                         continue
-                    raise e
 
-        raise last_exception  # pragma: no cover
+            if last_exception is not None:
+                raise last_exception
+            raise RuntimeError(f"Tool endpoint {endpoint} failed after retries")
 
     async def get_portfolio(self, account_id: str) -> Optional[PortfolioRecord]:
         """Retrieve portfolio record for an account ID."""
