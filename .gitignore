@@ -16,5 +16,6 @@ schemas/generated/
 *.tfstate.*
 *.tfvars
 !*.tfvars.example
-*.egg-info
+*.egg-info/
+build/
 infra/build/
