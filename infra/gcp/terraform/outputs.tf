@@ -47,3 +47,30 @@ output "bigquery_proposal_events_table_id" {
   description = "BigQuery table ID for proposal events"
   value       = google_bigquery_table.proposal_events.table_id
 }
+
+output "vpc_network_name" {
+  description = "Name of the VPC network"
+  value       = google_compute_network.vpc.name
+}
+
+output "vpc_subnet_name" {
+  description = "Name of the subnetwork"
+  value       = google_compute_subnetwork.subnet.name
+}
+
+output "psc_network_attachment_id" {
+  description = "Resource ID of the PSC network attachment for Agent Runtime"
+  value       = google_compute_network_attachment.psc_attachment.id
+}
+
+output "load_balancer_ip" {
+  description = "Public IP address of the external HTTP(S) Load Balancer"
+  value       = google_compute_global_address.lb_ip.address
+}
+
+output "cloud_armor_policy_id" {
+  description = "ID of the Cloud Armor security policy"
+  value       = google_compute_security_policy.edge_security_policy.id
+}
+
+

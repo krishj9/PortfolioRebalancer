@@ -180,11 +180,46 @@ async def apply_output_guardrails(state: WorkflowGraphState) -> dict:
                 {"type": "SENSITIVE_INFORMATION", "action": "BLOCKED"}
             )
 
+    # Model Armor prompt injection & jailbreak screening on user input (Task P3-04)
+    request = state.get("request")
+    if request:
+        constraints = getattr(request, "constraints", {}) or {}
+        constraint_texts = (
+            [str(v) for v in constraints.values()]
+            if isinstance(constraints, dict)
+            else [str(constraints)]
+        )
+        action_ctx = getattr(request, "requested_action_context", "") or ""
+        full_text = " ".join(constraint_texts + [action_ctx]).lower()
+        injection_keywords = [
+            "ignore previous instructions",
+            "ignore all previous instructions",
+            "reveal system prompt",
+            "disregard policy",
+            "approve all trades",
+            "jailbreak",
+            "bypass security",
+        ]
+        if any(pat in full_text for pat in injection_keywords):
+            logger.warning("Model Armor guardrail blocked prompt injection attempt: %s", full_text[:100])
+            guardrail_result["action"] = "BLOCKED"
+            guardrail_result["assessments"].append(
+                {"type": "PROMPT_INJECTION", "action": "BLOCKED"}
+            )
+
     if guardrail_result["action"] == "BLOCKED":
+        updated_rec = state.get("recommendation_package")
+        if updated_rec:
+            updated_rec = updated_rec.model_copy(update={
+                "workflow_state": WorkflowState.BLOCKED,
+                "approval_eligibility": False,
+                "summary": "Request blocked by content safety policy: potential prompt injection or unsafe content detected.",
+            })
         return {
             "guardrail_result": guardrail_result,
             "workflow_state": WorkflowState.BLOCKED,
-            "blockers": ["GUARDRAIL_VIOLATION"],
+            "blockers": ["CONTENT_BLOCKED"],
+            "recommendation_package": updated_rec,
         }
 
     return {"guardrail_result": guardrail_result}
@@ -350,6 +385,30 @@ async def emit_workflow_audit_event(
                 outcome=approval.approval_status,
                 details={"approval_id": approval.approval_id},
             )
+    elif state.get("workflow_state") == WorkflowState.BLOCKED:
+        event_type = (
+            "CONTENT_BLOCKED"
+            if (state.get("blockers") and "CONTENT_BLOCKED" in state["blockers"])
+            else "POLICY_BLOCKED"
+        )
+        reason = "Request blocked by content safety policy: potential prompt injection or unsafe content detected"
+        actor_id = request.actor.actor_id if request.actor else "unknown"
+        if tool_client is not None:
+            await tool_client.audit(
+                event_type=event_type,
+                correlation=request.correlation,
+                actor_id=actor_id,
+                outcome="BLOCKED",
+                details={"reason": reason},
+            )
+        elif store is not None:
+            store.add_audit_event(
+                event_type=event_type,
+                correlation=request.correlation,
+                actor_id=actor_id,
+                outcome="BLOCKED",
+                details={"reason": reason},
+            )
 
     return {"audit_event_ids": [event_id]}
 
@@ -376,6 +435,8 @@ async def return_response(state: WorkflowGraphState) -> dict:
 def _generate_summary(state: WorkflowGraphState, proposal_status: Optional[str] = None) -> str:
     """Generate summary based on workflow state, incorporating sentiment signals."""
     if state.get("blockers"):
+        if "CONTENT_BLOCKED" in state["blockers"]:
+            return "Request blocked by content safety policy: potential prompt injection or unsafe content detected."
         return f"Recommendation is blocked: {', '.join(state['blockers'])}"
 
     status = proposal_status or "UNKNOWN"

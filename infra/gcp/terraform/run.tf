@@ -4,7 +4,7 @@
 resource "google_cloud_run_v2_service" "tools" {
   name     = "${var.app_name}-tools"
   location = var.region
-  ingress  = "INGRESS_TRAFFIC_ALL"
+  ingress  = "INGRESS_TRAFFIC_INTERNAL_ONLY"
 
   template {
     service_account = google_service_account.sa_tools.email
@@ -41,7 +41,8 @@ resource "google_cloud_run_v2_service" "tools" {
   depends_on = [google_project_service.apis]
 }
 
-# IAM: Restrict tools service access to Runtime SA and API SA (no allUsers)
+# IAM: Restrict tools service access strictly to Runtime SA (Task P3-03)
+# (API SA invoker grant removed in Phase 3; calls route only via Agent Gateway/Runtime)
 resource "google_cloud_run_v2_service_iam_member" "tools_invoker_runtime" {
   location = google_cloud_run_v2_service.tools.location
   name     = google_cloud_run_v2_service.tools.name
@@ -49,18 +50,11 @@ resource "google_cloud_run_v2_service_iam_member" "tools_invoker_runtime" {
   member   = "serviceAccount:${google_service_account.sa_runtime.email}"
 }
 
-resource "google_cloud_run_v2_service_iam_member" "tools_invoker_api" {
-  location = google_cloud_run_v2_service.tools.location
-  name     = google_cloud_run_v2_service.tools.name
-  role     = "roles/run.invoker"
-  member   = "serviceAccount:${google_service_account.sa_api.email}"
-}
-
-# 2. Main API Service
+# 2. Main API Service (Internal and Cloud Load Balancing Ingress - Task P3-05)
 resource "google_cloud_run_v2_service" "api" {
   name     = "${var.app_name}-api"
   location = var.region
-  ingress  = "INGRESS_TRAFFIC_ALL"
+  ingress  = "INGRESS_TRAFFIC_INTERNAL_LOAD_BALANCER"
 
   template {
     service_account = google_service_account.sa_api.email
@@ -115,12 +109,4 @@ resource "google_cloud_run_v2_service" "api" {
   }
 
   depends_on = [google_project_service.apis]
-}
-
-# Public invoker for API service (Phase 1, protected in Phase 3 with IAP)
-resource "google_cloud_run_v2_service_iam_member" "api_public_invoker" {
-  location = google_cloud_run_v2_service.api.location
-  name     = google_cloud_run_v2_service.api.name
-  role     = "roles/run.invoker"
-  member   = "allUsers"
 }

@@ -3,6 +3,8 @@ from typing import Annotated, Optional
 from fastapi import APIRouter, Depends, Header
 
 from app.contracts import OrchestrationResponse, PortfolioRebalanceRequest
+from app.contracts.common import ActorContext
+from app.core.auth import get_current_actor, verify_account_ownership
 from app.core.config import Settings, get_settings
 from app.persistence.dependencies import get_workflow_store
 from app.persistence.memory_store import WorkflowStore
@@ -26,9 +28,18 @@ async def create_rebalance_request(
     settings: Annotated[Settings, Depends(get_settings)],
     orchestrator: Annotated[Orchestrator, Depends(get_orchestrator)],
     runtime_client: Annotated[RuntimeClient, Depends(get_runtime_client)],
+    actor: Annotated[ActorContext, Depends(get_current_actor)],
+    store: Annotated[WorkflowStore, Depends(get_workflow_store)],
     idempotency_key: Annotated[Optional[str], Header(alias="Idempotency-Key")] = None,
     session_id: Annotated[Optional[str], Header(alias="X-Session-ID")] = None,
 ) -> OrchestrationResponse:
+    # Verify account ownership (Task P3-06)
+    account_id = request.account_profile.account_id
+    portfolio = store.get_portfolio(account_id)
+    if portfolio is not None:
+        verify_account_ownership(portfolio, actor, settings)
+    if actor.actor_id != "local_owner" or request.actor.actor_id == "local_owner":
+        request.actor.actor_id = actor.actor_id
     if idempotency_key and not request.correlation.idempotency_key:
         request.correlation.idempotency_key = idempotency_key
 

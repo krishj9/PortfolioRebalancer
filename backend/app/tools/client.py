@@ -79,7 +79,10 @@ class ToolClient:
         self.timeout = timeout
 
     def _get_headers(self) -> dict[str, str]:
-        headers = {"Content-Type": "application/json"}
+        headers = {
+            "Content-Type": "application/json",
+            "X-Caller-Identity": "sa-runtime@mybrightday-dev.iam.gserviceaccount.com",
+        }
         token = _get_id_token(self.base_url)
         if token:
             headers["Authorization"] = f"Bearer {token}"

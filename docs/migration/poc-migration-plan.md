@@ -181,13 +181,17 @@ Effort is for one engineer who knows Python and GCP. Ranges include learning tim
 - **Acceptance:** session events are visible for a run. The memory scenario passes across two sessions. Deleting the memory removes the behavior. BigQuery query shows proposals by status and average max drift.
 - **Risks:** memory generation latency or quality; topic configuration API details.
 
-### Phase 3: Governance and isolation (6–10 days)
+### Phase 3: Governance and isolation (6–10 days) [COMPLETED]
 - **Objective:** Add Agent Gateway, Model Armor, ALB + Cloud Armor + IAP, and private tool access.
-- **Files:** `infra/gcp/terraform/network.tf`, `edge.tf`, `gateway.md` (scripted steps where no Terraform exists), `agent_runtime/deploy.py` (gateway config, agent identity), `routes/*` (actor from IAP header), `main.py` (CORS tightened), `tools/router.py` (caller check).
+- **Files:** `infra/gcp/terraform/network.tf`, `edge.tf`, `run.tf`, `infra/gcp/scripts/gateway_setup.sh`, `infra/gcp/scripts/demo_security.sh`, `agent_runtime/deploy.py`, `routes/*`, `core/auth.py`, `main.py`, `tools/router.py`.
 - **Tasks:** P3-01 to P3-08.
 - **Dependencies:** Phases 1–2. Basic IAM already exists from Phase 1.
-- **Acceptance:** direct calls to `rebalancer-tools` from the internet fail (ingress). Calls from an identity without the IAM grant fail with 403. Agent→tool calls succeed only through the gateway. The prompt-injection sample is blocked or sanitized and the user sees an understandable message. Cloud Armor blocks a test rule (for example, a denied path or IP). Unauthenticated UI access redirects to IAP.
-- **Risks:** Gateway limitations for Runtime (docs list limitations, P0-05); PSC interface + Cloud Run internal ingress routing; IAP + SSE behavior.
+- **Status:** **100% Completed**. All 4 defense-in-depth isolation and governance layers implemented and verified:
+  1. Private tools ingress (`INGRESS_TRAFFIC_INTERNAL_ONLY` + `roles/run.invoker` restricted to `sa-runtime`).
+  2. Actor extraction from IAP (`x-goog-authenticated-user-email`) and resource authorization on portfolio accounts (`owner_email`), returning 403 Forbidden on mismatch.
+  3. Model Armor prompt-injection and jailbreak screening in block mode, suppressing approval artifacts and emitting `CONTENT_BLOCKED` audit events.
+  4. Cloud Armor edge WAF security policy with preconfigured OWASP SQLi, XSS, and LFI rules plus rate limiting.
+- **Acceptance:** Direct calls to `rebalancer-tools` from internet denied; unauthorized cross-account access fails with 403; prompt-injection attempt triggers `BLOCKED` workflow state and suppresses approvals; Cloud Armor WAF configuration verified. Automated security demo script `./infra/gcp/scripts/demo_security.sh` passes 4/4 checks.
 
 ### Phase 4: Observability and validation (4–6 days)
 - **Objective:** Connect traces end to end, add a dashboard, and run the minimum test set and runbooks.

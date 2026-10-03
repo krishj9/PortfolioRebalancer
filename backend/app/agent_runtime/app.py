@@ -6,6 +6,7 @@ import logging
 import os
 from typing import Any, Optional
 
+from app.contracts.common import WorkflowState
 from app.contracts.workflow import OrchestrationResponse, PortfolioRebalanceRequest
 from app.core.config import Settings
 from app.services.langgraph_graph import LangGraphOrchestrator
@@ -182,6 +183,16 @@ class RebalanceGraphApp:
                         args=(session_name, actor_id),
                         daemon=True,
                     ).start()
+
+            if resp.workflow_state == WorkflowState.BLOCKED:
+                from app.contracts.common import ErrorSeverity, StructuredError
+                if not resp.structured_error:
+                    resp.structured_error = StructuredError(
+                        code="CONTENT_BLOCKED",
+                        message="Request blocked by content safety policy: potential prompt injection or unsafe content detected.",
+                        severity=ErrorSeverity.CRITICAL,
+                        source="model_armor",
+                    )
 
             return resp.model_dump(mode="json")
         except Exception as e:

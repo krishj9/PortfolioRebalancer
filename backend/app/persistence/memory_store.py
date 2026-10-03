@@ -168,6 +168,7 @@ def default_portfolios() -> list[PortfolioRecord]:
             fixed_income_value=Decimal("2250"),  # 22.5% — below 30% target
             cash_value=Decimal("1000"),     # 10% — at target
             as_of=now,
+            owner_email="local_owner",
         ),
         _portfolio_record(
             client_id="client_income",
@@ -177,6 +178,7 @@ def default_portfolios() -> list[PortfolioRecord]:
             fixed_income_value=Decimal("5200"),  # 52% — above 30% target
             cash_value=Decimal("1000"),     # 10% — at target
             as_of=now,
+            owner_email="income-investor@example.com",
         ),
     ]
 
@@ -189,6 +191,7 @@ def _portfolio_record(
     fixed_income_value: Decimal,
     cash_value: Decimal,
     as_of: datetime,
+    owner_email: str = "local_owner",
 ) -> PortfolioRecord:
     return PortfolioRecord(
         client_profile=ClientProfile(
@@ -248,5 +251,6 @@ def _portfolio_record(
         ),
         updated_at=as_of,
         source="seed",
+        owner_email=owner_email,
     )
 

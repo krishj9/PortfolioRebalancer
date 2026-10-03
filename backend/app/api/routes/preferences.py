@@ -6,7 +6,10 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException
 
+from app.contracts.common import ActorContext
 from app.contracts.domain import AllocationTarget, ClientProfile, RiskProfile
+from app.core.auth import get_current_actor, verify_account_ownership
+from app.core.config import Settings, get_settings
 from app.persistence.dependencies import get_workflow_store
 from app.persistence.memory_store import WorkflowStore
 
@@ -59,6 +62,8 @@ class PreferenceUpdateRequest:
 async def get_preferences(
     client_id: str,
     store: Annotated[WorkflowStore, Depends(get_workflow_store)],
+    actor: Annotated[ActorContext, Depends(get_current_actor)],
+    settings: Annotated[Settings, Depends(get_settings)],
 ) -> dict:
     """
     Get current preferences for a client.
@@ -66,6 +71,8 @@ async def get_preferences(
     Args:
         client_id: Client identifier
         store: Workflow store
+        actor: Authenticated actor context
+        settings: Application settings
 
     Returns:
         Preference profile with client, risk, allocation, and constraints
@@ -79,6 +86,8 @@ async def get_preferences(
 
     if not portfolio:
         raise HTTPException(status_code=404, detail=f"Client {client_id} not found")
+
+    verify_account_ownership(portfolio, actor, settings)
 
     return {
         "client_id": client_id,
@@ -117,6 +126,8 @@ async def update_preferences(
     client_id: str,
     request: dict,
     store: Annotated[WorkflowStore, Depends(get_workflow_store)],
+    actor: Annotated[ActorContext, Depends(get_current_actor)],
+    settings: Annotated[Settings, Depends(get_settings)],
 ) -> dict:
     """
     Update preferences for a client.
@@ -125,6 +136,8 @@ async def update_preferences(
         client_id: Client identifier
         request: Preference update request
         store: Workflow store
+        actor: Authenticated actor context
+        settings: Application settings
 
     Returns:
         Updated preference profile
@@ -140,6 +153,8 @@ async def update_preferences(
 
     if not portfolio:
         raise HTTPException(status_code=404, detail=f"Client {client_id} not found")
+
+    verify_account_ownership(portfolio, actor, settings)
 
     # Update fields if provided
     if "risk_profile" in request:

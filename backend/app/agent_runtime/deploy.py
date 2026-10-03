@@ -23,6 +23,8 @@ LOCATION = os.environ.get("GCP_LOCATION", "us-central1")
 STAGING_BUCKET = os.environ.get("GCP_STAGING_BUCKET", "gs://staging.mybrightday-dev.appspot.com")
 RUNTIME_DISPLAY_NAME = os.environ.get("RUNTIME_DISPLAY_NAME", "portfolio-rebalancer-runtime")
 TOOLS_URL = os.environ.get("TOOLS_URL", "http://localhost:8000")
+AGENT_GATEWAY = os.environ.get("AGENT_GATEWAY", "")
+PSC_NETWORK_ATTACHMENT = os.environ.get("PSC_NETWORK_ATTACHMENT", "")
 
 
 def deploy(
@@ -31,9 +33,17 @@ def deploy(
     staging_bucket: str = STAGING_BUCKET,
     display_name: str = RUNTIME_DISPLAY_NAME,
     tools_url: str = TOOLS_URL,
+    agent_gateway: str | None = None,
+    psc_network_attachment: str | None = None,
     force_create: bool = False,
     runtime_name: str | None = None,
 ):
+    gateway_resource = agent_gateway if agent_gateway is not None else AGENT_GATEWAY
+    psc_attachment = (
+        psc_network_attachment
+        if psc_network_attachment is not None
+        else PSC_NETWORK_ATTACHMENT
+    )
     print(f"Initializing agentplatform.Client(project={project_id}, location={location})...")
     client = agentplatform.Client(project=project_id, location=location)
 
@@ -91,6 +101,21 @@ def deploy(
         "env_vars": env_vars,
     }
 
+    if gateway_resource:
+        print(f"Binding Agent Gateway (Agent-to-Anywhere egress): {gateway_resource}")
+        config["agent_gateway_config"] = {
+            "agent_to_anywhere_config": {
+                "agent_gateway": gateway_resource,
+            }
+        }
+        config["identity_type"] = "AGENT_IDENTITY"
+
+    if psc_attachment:
+        print(f"Configuring PSC Interface attachment: {psc_attachment}")
+        config["psc_interface_config"] = {
+            "network_attachment": psc_attachment,
+        }
+
     resource_file = Path(__file__).parent / "deployed_runtime.txt"
     target_name = runtime_name
     if not target_name and resource_file.exists() and not force_create:
@@ -118,6 +143,14 @@ if __name__ == "__main__":
     parser.add_argument("--create", action="store_true", help="Force create a new Agent Runtime instead of updating")
     parser.add_argument("--name", type=str, default=None, help="Existing runtime resource name to update")
     parser.add_argument("--tools-url", type=str, default=TOOLS_URL, help="Tools service base URL")
+    parser.add_argument("--agent-gateway", type=str, default=None, help="Agent Gateway resource path")
+    parser.add_argument("--psc-network-attachment", type=str, default=None, help="PSC Network Attachment resource path")
     args = parser.parse_args()
 
-    deploy(force_create=args.create, runtime_name=args.name, tools_url=args.tools_url)
+    deploy(
+        force_create=args.create,
+        runtime_name=args.name,
+        tools_url=args.tools_url,
+        agent_gateway=args.agent_gateway,
+        psc_network_attachment=args.psc_network_attachment,
+    )

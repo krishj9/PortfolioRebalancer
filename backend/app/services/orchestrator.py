@@ -42,6 +42,60 @@ class Orchestrator:
             )
         )
 
+        # Content safety and prompt injection screening (Task P3-04)
+        constraints = getattr(request, "constraints", {})
+        constraint_texts = (
+            [f"{k}: {v}" for k, v in constraints.items()]
+            if isinstance(constraints, dict)
+            else [str(constraints)]
+        )
+        action_ctx = getattr(request, "requested_action_context", "") or ""
+        full_text = " ".join(constraint_texts + [action_ctx]).lower()
+        injection_keywords = [
+            "ignore previous instructions",
+            "ignore all previous instructions",
+            "reveal system prompt",
+            "disregard policy",
+            "approve all trades",
+            "jailbreak",
+            "bypass security",
+        ]
+        if any(pat in full_text for pat in injection_keywords):
+            self.store.add_audit_event(
+                event_type="CONTENT_BLOCKED",
+                correlation=request.correlation,
+                actor_id=request.actor.actor_id if request.actor else "unknown",
+                outcome="BLOCKED",
+                details={"reason": "Request blocked by content safety policy"},
+            )
+            from app.contracts.analysis import PolicyVerdictStatus, RiskPolicyResponse, ExecutionProposalResponse
+            risk_policy = RiskPolicyResponse(
+                verdict=PolicyVerdictStatus.NON_COMPLIANT,
+                drift=[],
+            )
+            proposal = ExecutionProposalResponse(
+                proposal_status="BLOCKED",
+            )
+            recommendation = RecommendationPackage(
+                summary="Request blocked by content safety policy: potential prompt injection or unsafe content detected.",
+                agent_stages=[],
+                current_allocation={},
+                target_allocation=request.allocation_target.asset_class_targets,
+                proposed_allocation={},
+                risk_policy=risk_policy,
+                proposal=proposal,
+                workflow_state=WorkflowState.BLOCKED,
+                approval_eligibility=False,
+                evidence=[],
+            )
+            return OrchestrationResponse(
+                correlation=request.correlation,
+                version=request.version,
+                workflow_state=WorkflowState.BLOCKED,
+                recommendation_package=recommendation,
+                approval_artifact=None,
+            )
+
         stages: list[AgentStageResult] = []
 
         memory_stage, _memory = await self.memory_agent.run(request)

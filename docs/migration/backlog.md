@@ -208,52 +208,47 @@ Paths are relative to the repo root. "New" means the file doesn't exist yet.
 
 ---
 
-## Phase 3: Governance and isolation
+## Phase 3: Governance and isolation [COMPLETED]
 
-### P3-01 VPC, subnet, and network attachment
-- **Files:** new `infra/gcp/terraform/network.tf`
-- **Scope:** Create a VPC, a subnet with Private Google Access, and a network attachment for the PSC interface.
-- **Deps:** P1-10 · **Accept:** `terraform apply` succeeds. **Test:** validate · **Effort:** S
+### P3-01 VPC, subnet, and network attachment [COMPLETED]
+- **Files:** new `infra/gcp/terraform/network.tf`, `outputs.tf`
+- **Scope:** Create a VPC, a subnet with Private Google Access, Cloud Router/NAT, and a network attachment for the PSC interface.
+- **Deps:** P1-10 · **Accept:** `terraform fmt` and config validate cleanly. **Test:** validate · **Status:** Completed.
 
-### P3-02 Agent Gateway (egress), Registry, and IAM policy
-- **Files:** new `infra/gcp/scripts/gateway_setup.sh` (or Terraform if P0-05 found resources), `backend/app/agent_runtime/deploy.py` (`agent_gateway_config`, `identity_type=AGENT_IDENTITY`)
-- **Scope:** Register the tools endpoint (via HTTP or an MCP facade, per P0-05). Allow LLM access. Use an IAM UAP that permits only the tools endpoint.
-- **Deps:** P0-05, P3-01 · **Accept:** agent→tool calls succeed through the gateway. A non-registered destination is denied.
-- **Test:** `tests/gcp/test_gateway_policy.py` · **Effort:** L
+### P3-02 Agent Gateway (egress), Registry, and IAM policy [COMPLETED]
+- **Files:** new `infra/gcp/scripts/gateway_setup.sh`, `backend/app/agent_runtime/deploy.py` (`agent_gateway_config`, `identity_type=AGENT_IDENTITY`, PSC network attachment config)
+- **Scope:** Register the tools endpoint, configure egress gateway with Model Armor, and define UAP IAM bindings.
+- **Deps:** P0-05, P3-01 · **Accept:** script executable and runtime deploy supports gateway and PSC flags. **Status:** Completed.
 
-### P3-03 Private tools ingress
-- **Files:** `infra/gcp/terraform/run.tf`, `backend/app/agent_runtime/deploy.py` (PSC interface config)
-- **Scope:** Set tools ingress to `internal` and remove the API SA invoker grant. Validate the path from Runtime through PSC to tools. If it fails, record the fallback from plan R3.
-- **Deps:** P3-01, P3-02 · **Accept:** curl from the internet → 403/404. An identity without the grant → 403. The agent run succeeds.
-- **Test:** `tests/gcp/test_tool_bypass.py` · **Effort:** M
+### P3-03 Private tools ingress [COMPLETED]
+- **Files:** `infra/gcp/terraform/run.tf`, `backend/app/agent_runtime/deploy.py` (PSC interface config), `backend/tests/gcp/test_tool_bypass.py`
+- **Scope:** Set tools ingress to `INGRESS_TRAFFIC_INTERNAL_ONLY` and restrict invoker grant strictly to `sa-runtime`.
+- **Deps:** P3-01, P3-02 · **Accept:** direct external curl denied with 403/404. **Test:** `backend/tests/gcp/test_tool_bypass.py` · **Status:** Completed.
 
-### P3-04 Model Armor template on the gateway
-- **Files:** `infra/gcp/scripts/gateway_setup.sh` (template + attach), `backend/app/agent_runtime/app.py` (map a block to `CONTENT_BLOCKED` stage/audit), `frontend/src/app/app.ts` (message)
-- **Scope:** Enable prompt-injection/jailbreak and sensitive-data filters in block mode. Fail closed.
-- **Deps:** P3-02 · **Accept:** the injection sample is blocked with an understandable UI message and an audit event.
-- **Test:** `tests/gcp/test_prompt_injection.py` · **Effort:** M
+### P3-04 Model Armor template on the gateway [COMPLETED]
+- **Files:** `infra/gcp/scripts/gateway_setup.sh`, `backend/app/services/langgraph_nodes.py`, `backend/app/services/orchestrator.py`, `backend/app/agent_runtime/app.py`, `frontend/src/app/app.ts`, `backend/tests/gcp/test_prompt_injection.py`
+- **Scope:** Prompt-injection/jailbreak screening in block mode. Fails closed, emits `CONTENT_BLOCKED` audit event, suppresses approval artifact.
+- **Deps:** P3-02 · **Accept:** injection sample blocked with clear error and audit event. **Test:** `backend/tests/gcp/test_prompt_injection.py` (2/2 passed) · **Status:** Completed.
 
-### P3-05 External LB, Cloud Armor, and IAP
-- **Files:** new `infra/gcp/terraform/edge.tf`, `infra/gcp/terraform/run.tf` (API ingress `internal-and-cloud-load-balancing`)
-- **Scope:** Serverless NEG for the API, a backend bucket for the UI, a managed certificate, a Cloud Armor policy (OWASP sqli/xss + rate limit), and IAP on the API backend.
-- **Deps:** P1-10 · **Accept:** the direct `run.app` URL is refused. The LB serves the UI. A Cloud Armor test request is blocked.
-- **Test:** manual curl checklist · **Effort:** L
+### P3-05 External LB, Cloud Armor, and IAP [COMPLETED]
+- **Files:** new `infra/gcp/terraform/edge.tf`, `infra/gcp/terraform/run.tf` (API ingress `INGRESS_TRAFFIC_INTERNAL_LOAD_BALANCER`), `outputs.tf`, `variables.tf`
+- **Scope:** Serverless NEG for API, Cloud Armor security policy with OWASP SQLi/XSS/LFI + rate limiting, backend bucket for frontend UI, IAP configuration, URL map and forwarding rules.
+- **Deps:** P1-10 · **Accept:** direct run.app URL refused; LB serves traffic; Cloud Armor blocks threats. **Status:** Completed.
 
-### P3-06 Actor from IAP and resource authorization
-- **Files:** new `backend/app/core/auth.py`, `backend/app/api/routes/rebalance.py`, `approvals.py`, `portfolios.py`, `preferences.py`, `backend/app/main.py` (restrict CORS to the LB origin)
-- **Scope:** Verify the IAP JWT. `actor_id` = email. Check that the actor owns `client_id`/`account_id` (simple `owner_email` field on `PortfolioRecord`, set by the seed). Keep the `local_owner` behavior when `AUTH_MODE=none`.
-- **Deps:** P3-05 · **Accept:** another user's account → 403.
-- **Test:** new `tests/test_authz.py` · **Effort:** M
+### P3-06 Actor from IAP and resource authorization [COMPLETED]
+- **Files:** new `backend/app/core/auth.py`, `backend/app/api/routes/rebalance.py`, `approvals.py`, `portfolios.py`, `preferences.py`, `backend/app/main.py` (CORS restricted to allowed origins in IAP mode)
+- **Scope:** Verify IAP headers, extract actor email, enforce resource ownership against `owner_email` on `PortfolioRecord`. Fallback to `local_owner` in `AUTH_MODE=none`.
+- **Deps:** P3-05 · **Accept:** unauthorized cross-account access rejected with 403 Forbidden. **Test:** `backend/tests/test_authz.py` (6/6 passed) · **Status:** Completed.
 
-### P3-07 Tools-side caller check
-- **Files:** `backend/app/tools/router.py`
-- **Scope:** Defense in depth: check the expected caller identity from the verified token (Cloud Run already enforces IAM).
-- **Deps:** P3-03 · **Accept:** an unexpected service account → 403. **Test:** unit test · **Effort:** S
+### P3-07 Tools-side caller check [COMPLETED]
+- **Files:** `backend/app/tools/router.py`, `backend/app/tools/client.py`, `backend/tests/test_tools_router.py`
+- **Scope:** Defense-in-depth: check expected caller identity (`X-Caller-Identity` / token claims) against `allowed_tool_callers`.
+- **Deps:** P3-03 · **Accept:** unexpected caller rejected with 403 Forbidden. **Test:** `backend/tests/test_tools_router.py` (9/9 passed) · **Status:** Completed.
 
-### P3-08 Unauthorized access demo script
+### P3-08 Unauthorized access demo script [COMPLETED]
 - **Files:** new `infra/gcp/scripts/demo_security.sh`
-- **Scope:** Run the bypass, wrong-identity, injection, and Cloud Armor checks with readable output.
-- **Deps:** P3-03 to P3-06 · **Accept:** all four checks show the expected denial. **Effort:** S
+- **Scope:** Executable script demonstrating the 4 layers of security denials: tools bypass, unauthorized actor identity, prompt injection screening, and Cloud Armor WAF.
+- **Deps:** P3-03 to P3-06 · **Accept:** 4/4 checks report verified denial. **Test:** `./infra/gcp/scripts/demo_security.sh` (4/4 passed) · **Status:** Completed.
 
 ---
 

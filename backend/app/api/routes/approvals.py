@@ -12,8 +12,10 @@ from app.contracts.analysis import (
     ApprovalArtifact,
     ApprovalTransitionResult,
 )
-from app.contracts.common import new_id
+from app.contracts.common import ActorContext, new_id
 from app.contracts.domain import PortfolioHolding, PortfolioRecord, PortfolioSnapshot
+from app.core.auth import get_current_actor, verify_account_ownership
+from app.core.config import Settings, get_settings
 from app.persistence.dependencies import get_workflow_store
 from app.persistence.memory_store import WorkflowStore
 
@@ -28,10 +30,18 @@ async def apply_approval_action(
     action: ApprovalActionRequest,
     store: Annotated[WorkflowStore, Depends(get_workflow_store)],
     analytics: Annotated[BaseAnalyticsAdapter, Depends(get_analytics_adapter)],
+    actor: Annotated[ActorContext, Depends(get_current_actor)],
+    settings: Annotated[Settings, Depends(get_settings)],
 ) -> ApprovalTransitionResult:
     approval = store.get_approval(approval_id)
     if approval is None:
         raise HTTPException(status_code=404, detail="Approval artifact not found")
+
+    # Verify actor ownership over portfolio
+    account_id = approval.account_profile.account_id
+    portfolio = store.get_portfolio(account_id)
+    if portfolio is not None:
+        verify_account_ownership(portfolio, actor, settings)
 
     # Only block APPROVE actions on blocked recommendations, allow REJECT
     if approval.recommendation.workflow_state == "BLOCKED" and action.action == ApprovalAction.APPROVE:

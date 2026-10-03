@@ -51,3 +51,22 @@ variable "monthly_budget_amount" {
   type        = number
   default     = 50
 }
+
+variable "iap_client_id" {
+  description = "OAuth 2.0 Client ID for Identity-Aware Proxy (IAP)"
+  type        = string
+  default     = ""
+}
+
+variable "iap_client_secret" {
+  description = "OAuth 2.0 Client Secret for Identity-Aware Proxy (IAP)"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "domain_name" {
+  description = "Domain name for managed SSL certificate on external Load Balancer (optional)"
+  type        = string
+  default     = ""
+}

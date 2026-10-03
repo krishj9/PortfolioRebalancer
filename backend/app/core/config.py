@@ -255,6 +255,28 @@ class Settings(BaseSettings):
     market_stream_max_events: int = 0
     seed_default_portfolios: bool = True
 
+    # Authentication & Authorization configuration (Task P3-06, P3-07)
+    auth_mode: str = Field(
+        default="none",
+        description="Auth mode: none (local dev) or iap",
+    )
+    iap_audience: str = Field(
+        default="",
+        description="Expected audience for Google Cloud IAP JWT verification",
+    )
+    cors_allowed_origins: list[str] = Field(
+        default_factory=lambda: ["http://localhost:3000", "http://localhost:8000"],
+        description="Allowed CORS origins",
+    )
+    tools_caller_check: str = Field(
+        default="optional",
+        description="Enforce caller check on tools: optional or enforce",
+    )
+    allowed_tool_callers: list[str] = Field(
+        default_factory=lambda: ["sa-runtime@mybrightday-dev.iam.gserviceaccount.com"],
+        description="Allowed caller service account emails for tools service",
+    )
+
     # LLM Integration (nested configs)
     feature_flags: FeatureFlags = Field(default_factory=FeatureFlags)
     llm_config: LLMConfig = Field(default_factory=LLMConfig)

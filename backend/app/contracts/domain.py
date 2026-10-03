@@ -98,3 +98,5 @@ class PortfolioRecord(ContractModel):
     updated_at: datetime
     source: str = "seed"
     source_approval_id: str | None = None
+    owner_email: str = "local_owner"
+

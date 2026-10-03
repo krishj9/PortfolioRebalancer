@@ -26,9 +26,15 @@ def create_app() -> FastAPI:
         version=settings.app_version,
         description="Personal portfolio decision-support API.",
     )
+    cors_origins = (
+        settings.cors_allowed_origins
+        if settings.auth_mode.lower() == "iap"
+        else ["*"]
+    )
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],
+        allow_origins=cors_origins,
+        allow_credentials=True if cors_origins != ["*"] else False,
         allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
         allow_headers=["*"],
     )

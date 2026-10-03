@@ -200,3 +200,42 @@ def test_app_role_tools_isolation():
         # Rebalance API route is NOT mounted
         rebal_resp = tools_client.post("/api/rebalance", json={})
         assert rebal_resp.status_code == 404
+
+
+def test_tools_caller_check_enforced_unauthorized_rejected(test_setup):
+    """When tools caller check is enforced, unauthorized callers receive 403 Forbidden."""
+    client, store, req = test_setup
+    from app.core.config import Settings, get_settings
+    client.app.dependency_overrides[get_settings] = lambda: Settings(
+        tools_caller_check="enforce",
+        allowed_tool_callers=["sa-runtime@mybrightday-dev.iam.gserviceaccount.com"],
+    )
+
+    # Missing or unauthorized caller identity
+    resp = client.post(
+        "/tools/get_portfolio",
+        json={"account_id": "acct_demo"},
+        headers={"X-Caller-Identity": "evil-actor@example.com"},
+    )
+    assert resp.status_code == 403
+    assert "not authorized to invoke deterministic tools service" in resp.json()["detail"]
+
+
+def test_tools_caller_check_enforced_authorized_accepted(test_setup):
+    """When tools caller check is enforced, authorized service account is accepted."""
+    client, store, req = test_setup
+    from app.core.config import Settings, get_settings
+    client.app.dependency_overrides[get_settings] = lambda: Settings(
+        tools_caller_check="enforce",
+        allowed_tool_callers=["sa-runtime@mybrightday-dev.iam.gserviceaccount.com"],
+    )
+
+    # Authorized caller
+    resp = client.post(
+        "/tools/get_portfolio",
+        json={"account_id": "acct_demo"},
+        headers={"X-Caller-Identity": "sa-runtime@mybrightday-dev.iam.gserviceaccount.com"},
+    )
+    assert resp.status_code == 200
+    assert resp.json()["account_profile"]["account_id"] == "acct_demo"
+

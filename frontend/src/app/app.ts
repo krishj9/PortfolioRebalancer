@@ -84,8 +84,14 @@ export class App implements OnDestroy {
       return 'Recommendation rejected';
     }
     
-    // Check for policy block
+    // Check for policy block or content safety block
     if (state === 'BLOCKED' || verdict === 'NON_COMPLIANT') {
+      if (
+        response.structured_error?.code === 'CONTENT_BLOCKED' ||
+        response.recommendation_package?.summary?.includes('content safety')
+      ) {
+        return 'Request blocked by content safety policy';
+      }
       return 'Recommendation blocked by policy checks';
     }
     

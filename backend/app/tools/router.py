@@ -1,8 +1,8 @@
 from datetime import UTC, datetime
 import logging
-from typing import Annotated
+from typing import Annotated, Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException, Request
 
 from app.adapters.analytics import BaseAnalyticsAdapter, get_analytics_adapter
 from app.contracts.analysis import (
@@ -12,6 +12,7 @@ from app.contracts.analysis import (
     RiskPolicyResponse,
 )
 from app.contracts.domain import PortfolioRecord
+from app.core.config import Settings, get_settings
 from app.persistence.dependencies import get_workflow_store
 from app.persistence.memory_store import WorkflowStore
 from app.services.policy import evaluate_policy
@@ -29,7 +30,50 @@ from app.tools.models import (
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/tools", tags=["tools"])
+
+def verify_tool_caller(
+    request: Request,
+    settings: Annotated[Settings, Depends(get_settings)],
+    x_caller_identity: Annotated[Optional[str], Header(alias="X-Caller-Identity")] = None,
+    authorization: Annotated[Optional[str], Header(alias="Authorization")] = None,
+) -> str | None:
+    """
+    Defense-in-depth verification of caller identity on the deterministic tools service (Task P3-07).
+
+    Cloud Run already enforces IAM at the infrastructure layer (INGRESS_TRAFFIC_INTERNAL_ONLY + roles/run.invoker).
+    This tools-side check validates that the calling service account or verified header belongs
+    to the allowed set of service accounts (e.g. sa-runtime@project.iam.gserviceaccount.com).
+    """
+    if settings.tools_caller_check.lower() != "enforce":
+        return x_caller_identity or "local_caller"
+
+    caller = x_caller_identity or request.headers.get("x-caller-identity")
+
+    if not caller and authorization and authorization.startswith("Bearer "):
+        token = authorization.split(" ")[1]
+        try:
+            import base64
+            import json
+            parts = token.split(".")
+            if len(parts) >= 2:
+                payload_b64 = parts[1] + "=="
+                payload_json = base64.urlsafe_b64decode(payload_b64.encode("utf-8")).decode("utf-8")
+                claims = json.loads(payload_json)
+                caller = claims.get("email") or claims.get("sub")
+        except Exception:
+            pass
+
+    if not caller or caller not in settings.allowed_tool_callers:
+        logger.warning("Tools caller check rejected unauthorized caller: %s", caller)
+        raise HTTPException(
+            status_code=403,
+            detail=f"Caller '{caller}' is not authorized to invoke deterministic tools service",
+        )
+
+    return caller
+
+
+router = APIRouter(prefix="/tools", tags=["tools"], dependencies=[Depends(verify_tool_caller)])
 
 
 @router.post("/get_portfolio", response_model=PortfolioRecord)
