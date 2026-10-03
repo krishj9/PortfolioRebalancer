@@ -11,7 +11,7 @@ services:
     volumes:
       - ~/.aws:/root/.aws:ro
     environment:
-      - DYNAMODB_MODE=local
+      - PERSISTENCE_MODE=local
       - DYNAMODB_ENDPOINT_URL=http://dynamodb:8000
       - AWS_REGION=us-east-2
       - RESEARCH_AGENT_URL=http://research-agent:8101/a2a/research

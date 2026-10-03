@@ -10,7 +10,7 @@ Paths are relative to the repo root. "New" means the file doesn't exist yet.
 ### P0-01 Run the existing test suite
 - **Goal:** Establish a baseline.
 - **Files:** none (if a fix is needed, `backend/pyproject.toml` only)
-- **Scope:** Create a Python 3.14 venv, `pip install -e 'backend[dev]'`, run `DYNAMODB_MODE=memory pytest backend/tests`. Record pass/fail in the PR description.
+- **Scope:** Create a Python 3.14 venv, `pip install -e 'backend[dev]'`, run `PERSISTENCE_MODE=memory pytest backend/tests`. Record pass/fail in the PR description.
 - **Deps:** none · **Accept:** results recorded; any failures triaged as pre-existing.
 - **Test:** existing suite · **Effort:** S
 

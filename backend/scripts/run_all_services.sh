@@ -29,6 +29,7 @@ cleanup() {
 }
 trap cleanup EXIT INT TERM
 
+export PERSISTENCE_MODE="${MODE}"
 export DYNAMODB_MODE="${MODE}"
 if [[ "${MODE}" == "local" ]]; then
   export DYNAMODB_ENDPOINT_URL="${DYNAMODB_ENDPOINT_URL:-http://localhost:55000}"

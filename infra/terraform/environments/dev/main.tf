@@ -229,6 +229,7 @@ module "backend_lambda" {
   environment_variables = {
     APP_NAME                              = "Asset Management API"
     ENVIRONMENT                           = var.environment
+    PERSISTENCE_MODE                      = "aws"
     DYNAMODB_MODE                         = "aws"
     DYNAMODB_ENDPOINT_URL                 = ""
     APPROVALS_TABLE_NAME                  = aws_dynamodb_table.approvals.name

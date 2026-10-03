@@ -30,7 +30,7 @@ class DynamoDBWorkflowStore:
         self.approvals_table = self.dynamodb.Table(settings.approvals_table_name)
         self.audit_table = self.dynamodb.Table(settings.audit_events_table_name)
         self.portfolios_table = self.dynamodb.Table(settings.portfolios_table_name)
-        if settings.dynamodb_mode == "local":
+        if settings.persistence_mode == "local":
             self._ensure_local_tables()
         if settings.seed_default_portfolios:
             self._seed_portfolios_if_empty()

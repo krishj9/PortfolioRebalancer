@@ -168,7 +168,7 @@ OrchestrationResponse
 ### Persistence Layer
 Two implementations behind a `WorkflowStore` Protocol:
 - **`InMemoryWorkflowStore`** — local dev, seeded with 2 demo portfolios on startup
-- **`DynamoDBWorkflowStore`** — AWS, selected via `DYNAMODB_MODE=aws`
+- **`DynamoDBWorkflowStore`** — AWS, selected via `PERSISTENCE_MODE=aws` (or legacy `DYNAMODB_MODE=aws`)
 
 Both implement: `save_portfolio`, `get_portfolio`, `list_portfolios`, `save_approval`, `get_approval`, `list_approvals`, `update_approval`, `list_audit_events`, `add_audit_event`.
 
@@ -412,6 +412,7 @@ All Lambdas use Mangum as the ASGI adapter to handle API Gateway events. Handler
 
 Backend Lambda environment variables (key ones):
 ```
+PERSISTENCE_MODE=aws
 DYNAMODB_MODE=aws
 RESEARCH_AGENT_URL={api_endpoint}/a2a/research
 SENTIMENT_MCP_URL={api_endpoint}/mcp

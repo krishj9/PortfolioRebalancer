@@ -22,7 +22,7 @@ Alternative: skip activation and use `uv run` (see below).
 With an activated venv:
 
 ```shell
-DYNAMODB_MODE=local \
+PERSISTENCE_MODE=local \
 DYNAMODB_ENDPOINT_URL=http://localhost:55000 \
 uvicorn app.main:app --reload
 ```
@@ -30,7 +30,7 @@ uvicorn app.main:app --reload
 Or without activation:
 
 ```shell
-DYNAMODB_MODE=local \
+PERSISTENCE_MODE=local \
 DYNAMODB_ENDPOINT_URL=http://localhost:55000 \
 uv run uvicorn app.main:app --reload
 ```
@@ -47,8 +47,8 @@ Optional AWS mode:
 ./backend/scripts/run_backend.sh aws
 ```
 
-The same repository code can target AWS-hosted DynamoDB by setting `DYNAMODB_MODE=aws`
-and leaving `DYNAMODB_ENDPOINT_URL` unset.
+The same repository code can target AWS-hosted DynamoDB by setting `PERSISTENCE_MODE=aws` (or legacy `DYNAMODB_MODE=aws`)
+and leaving `DYNAMODB_ENDPOINT_URL` unset. For memory-only mode (e.g. testing), use `PERSISTENCE_MODE=memory`.
 
 The backend stores client portfolios in a dedicated portfolios table. Local mode seeds demo
 portfolios automatically when the table is empty. Approval actions persist the approved

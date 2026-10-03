@@ -1,7 +1,7 @@
 from functools import lru_cache
 from typing import Literal
 
-from pydantic import Field
+from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -148,10 +148,19 @@ class Settings(BaseSettings):
     policy_version: str = "1.0.0"
     app_version: str = "0.1.0"
 
-    # DynamoDB configuration
-    dynamodb_mode: str = "local"
+    # Persistence configuration
+    persistence_mode: str = Field(
+        default="local",
+        validation_alias=AliasChoices("persistence_mode", "dynamodb_mode"),
+        description="Workflow store persistence mode: memory, local (DynamoDB local), aws (DynamoDB AWS), firestore",
+    )
     dynamodb_endpoint_url: str | None = "http://localhost:55000"
     aws_region: str = "us-east-1"
+
+    @property
+    def dynamodb_mode(self) -> str:
+        """Backwards-compatibility property for dynamodb_mode."""
+        return self.persistence_mode
 
     # Table names
     approvals_table_name: str = "asset-management-dev-approvals"

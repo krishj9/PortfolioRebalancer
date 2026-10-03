@@ -534,8 +534,8 @@ class WorkflowStore(Protocol):
 ```
 
 Two implementations:
-- `InMemoryWorkflowStore` — used locally (seeded with default portfolios on startup)
-- `DynamoDBWorkflowStore` — used in AWS (selected via `DYNAMODB_MODE=aws`)
+- `InMemoryWorkflowStore` — used locally or in tests (selected via `PERSISTENCE_MODE=memory`)
+- `DynamoDBWorkflowStore` — used in AWS (selected via `PERSISTENCE_MODE=aws` or `local`, legacy `DYNAMODB_MODE`)
 
 ### Default Seed Portfolios
 On startup, the store seeds demo portfolios. The primary demo client is:
@@ -644,8 +644,8 @@ ENVIRONMENT=dev
 SCHEMA_VERSION=1.0.0
 POLICY_VERSION=1.0.0
 
-# DynamoDB
-DYNAMODB_MODE=local|aws
+# Persistence
+PERSISTENCE_MODE=memory|local|aws|firestore   # legacy alias: DYNAMODB_MODE
 DYNAMODB_ENDPOINT_URL=http://localhost:55000   # omit for AWS
 AWS_REGION=us-east-1
 

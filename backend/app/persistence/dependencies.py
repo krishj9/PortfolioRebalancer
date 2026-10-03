@@ -8,6 +8,6 @@ from app.persistence.memory_store import InMemoryWorkflowStore, WorkflowStore
 @lru_cache
 def get_workflow_store() -> WorkflowStore:
     settings = get_settings()
-    if settings.dynamodb_mode == "memory":
+    if settings.persistence_mode == "memory":
         return InMemoryWorkflowStore()
     return DynamoDBWorkflowStore(settings)
