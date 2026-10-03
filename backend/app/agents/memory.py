@@ -52,7 +52,7 @@ class MemoryPersonalizationAgent:
     def _load_templates(self) -> None:
         """Load prompt templates for Memory Agent."""
         try:
-            template_path = Path(".kiro/prompts/memory-agent/v1.0.0.yaml")
+            template_path = Path("prompts/memory-agent/v1.0.0.yaml")
             self.templates = self.prompt_loader.load_from_file(template_path)
             logger.info("Loaded Memory Agent prompt templates v1.0.0")
         except Exception as e:

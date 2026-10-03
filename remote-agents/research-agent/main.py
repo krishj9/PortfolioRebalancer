@@ -93,7 +93,7 @@ class ResearchAgentLLM:
     def _load_templates(self) -> None:
         """Load prompt templates for Research Agent."""
         try:
-            template_path = Path(".kiro/prompts/research-agent/v1.0.0.yaml")
+            template_path = Path("prompts/research-agent/v1.0.0.yaml")
             self.templates = self.prompt_loader.load_from_file(template_path)
             logger.info("Loaded Research Agent prompt templates v1.0.0")
         except Exception as e:

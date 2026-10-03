@@ -164,7 +164,7 @@ else:
     ...
 ```
 
-Design specs: `.kiro/specs/llm-langgraph-integration/` (`design.md`, `requirements.md`, `tasks.md`).
+Design specs: `docs/` (`docs/01-architecture/`, `docs/02-requirements/`, `docs/04-implementation/tasks.md`).
 
 ---
 
@@ -439,4 +439,4 @@ cd backend && pip install -e ".[dev]"
 |----------|---------|
 | [AGENT_CONTEXT.md](AGENT_CONTEXT.md) | Architecture, contracts, agents, known issues |
 | [AWS_DEPLOYMENT_GUIDE.md](AWS_DEPLOYMENT_GUIDE.md) | AWS deploy, Bedrock, command reference |
-| `.kiro/specs/llm-langgraph-integration/` | LLM integration design and tasks |
+| [docs/](docs/) | Architecture, requirements, implementation guides, and tasks |

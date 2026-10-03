@@ -305,7 +305,13 @@ class PromptTemplate:
             PromptTemplate instance
         """
         # Determine registry path
-        registry_path = Path(".kiro/prompts")
+        registry_path = Path("prompts")
+        if not registry_path.exists():
+            repo_candidate = Path(__file__).resolve().parents[3] / "prompts"
+            if repo_candidate.exists():
+                registry_path = repo_candidate
+            elif Path(".kiro/prompts").exists():
+                registry_path = Path(".kiro/prompts")
         agent_dir = registry_path / template_id.rsplit("-", 1)[0]
 
         if version == "latest":
@@ -357,6 +363,12 @@ class PromptTemplateLoader:
             repo_root_candidate = Path(__file__).resolve().parents[3] / yaml_path
             if repo_root_candidate.exists():
                 yaml_path = repo_root_candidate
+            else:
+                path_str = str(yaml_path)
+                if ".kiro/prompts/" in path_str:
+                    prompts_candidate = Path(__file__).resolve().parents[3] / path_str.replace(".kiro/prompts/", "prompts/")
+                    if prompts_candidate.exists():
+                        yaml_path = prompts_candidate
 
         with open(yaml_path, "r") as f:
             data = yaml.safe_load(f)

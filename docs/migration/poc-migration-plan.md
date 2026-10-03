@@ -25,7 +25,7 @@ Labels used in this document:
 | Agents | `backend/app/agents/*.py` | Rule: deterministic first, optional LLM second, fallback on failure. `Orchestrator` builds agents **without** an LLM adapter, so the live path is fully deterministic |
 | Approval | `agents/human_approval.py`, `routes/approvals.py` | SHA-256 recommendation hash with stale-artifact check. APPROVE is blocked when the workflow is BLOCKED. `approval_id = new_id("apr")` is random on every run |
 | LLM adapter | `adapters/bedrock.py` (`BedrockModelAdapter.invoke_model`, `invoke_model_streaming`) | Bedrock/Claude only. Used directly by `routes/explain.py` |
-| Prompts | `.kiro/prompts/*/v1.0.0.yaml`, `adapters/prompts.py`, `adapters/validation.py` | Model-agnostic YAML. Reusable |
+| Prompts | `prompts/*/v1.0.0.yaml`, `adapters/prompts.py`, `adapters/validation.py` | Model-agnostic YAML. Reusable |
 | Memory / guardrails / tracing | `adapters/memory.py` (`LocalMemoryAdapter`), `adapters/guardrails.py` (keyword list), `adapters/tracing.py` (no-op) | All stubs |
 | Persistence | `persistence/memory_store.py` (`WorkflowStore` Protocol, `InMemoryWorkflowStore`), `persistence/dynamodb_store.py`, `persistence/dependencies.py` | Clean protocol seam. Preferences are stored **inside** `PortfolioRecord`. The sessions and memory-queue tables are created but unused |
 | Remote agents | `remote-agents/research-agent` (A2A), `mcp-servers/sentiment` (MCP) | Placeholder content. Callers fall back locally (`agents/research.py`, `agents/sentiment.py`) |
@@ -140,7 +140,7 @@ Tool interface: plain authenticated HTTPS/JSON. We only add MCP if P0-05 shows A
 - **Correction/deletion:** a `DELETE /api/memory/{memory_id}` admin endpoint that calls the platform delete-memory operation. The exact SDK method is [UNVERIFIED] (P2-05). Re-stating a preference updates it through consolidation [VERIFIED-DOC].
 
 ### Context envelope (explanation prompt)
-1. System instructions (`.kiro/prompts/rebalancing-agent` or `trade-proposal-agent`).
+1. System instructions (`prompts/rebalancing-agent` or `trade-proposal-agent`).
 2. The last N session events (N ≤ 6).
 3. Retrieved memories, marked as *user preferences, non-authoritative*.
 4. The current portfolio from the tool service.

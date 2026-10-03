@@ -55,7 +55,7 @@ class PortfolioRebalancingAgent:
     def _load_templates(self) -> None:
         """Load prompt templates for Rebalancing Agent."""
         try:
-            template_path = Path(".kiro/prompts/rebalancing-agent/v1.0.0.yaml")
+            template_path = Path("prompts/rebalancing-agent/v1.0.0.yaml")
             self.templates = self.prompt_loader.load_from_file(template_path)
             logger.info("Loaded Rebalancing Agent prompt templates v1.0.0")
         except Exception as e:

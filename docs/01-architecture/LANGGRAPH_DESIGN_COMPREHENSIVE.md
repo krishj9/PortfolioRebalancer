@@ -397,7 +397,7 @@ The `BedrockModelAdapter` provides production-ready LLM invocation with:
 Prompts are managed as YAML templates with versioning:
 
 ```yaml
-# .kiro/prompts/memory-agent/v1.0.0.yaml
+# prompts/memory-agent/v1.0.0.yaml
 semantic_query:
   system_prompt: |
     You are a semantic query generator for portfolio memory retrieval.

@@ -130,7 +130,7 @@ An **AI-powered portfolio rebalancing decision-support platform** for a personal
 │   └── 06-deployment/               # AWS deployment model
 │
 ├── docker-compose.yml               # Local dev: backend + research-agent + sentiment-mcp + dynamodb
-└── .kiro/prompts/                   # YAML prompt templates for LLM agents
+└── prompts/                         # YAML prompt templates for LLM agents
 ```
 
 ---
@@ -242,7 +242,7 @@ FEATURE_FALLBACK_ON_LLM_FAILURE=true   ← keeps system working if Bedrock fails
 5. Return result with confidence score
 
 ### Prompt Templates
-Stored as YAML in `.kiro/prompts/{agent-name}/v1.0.0.yaml`. Each template has:
+Stored as YAML in `prompts/{agent-name}/v1.0.0.yaml`. Each template has:
 - `system_prompt`
 - `user_prompt_template` (with `{variable}` placeholders)
 - `validation.output_schema` (JSON Schema)

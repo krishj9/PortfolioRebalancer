@@ -53,7 +53,7 @@ class TradeExecutionProposalAgent:
     def _load_templates(self) -> None:
         """Load prompt templates for Trade Proposal Agent."""
         try:
-            template_path = Path(".kiro/prompts/trade-proposal-agent/v1.0.0.yaml")
+            template_path = Path("prompts/trade-proposal-agent/v1.0.0.yaml")
             self.templates = self.prompt_loader.load_from_file(template_path)
             logger.info("Loaded Trade Proposal Agent prompt templates v1.0.0")
         except Exception as e:

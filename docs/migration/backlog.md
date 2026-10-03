@@ -179,10 +179,10 @@ Paths are relative to the repo root. "New" means the file doesn't exist yet.
 - **Test:** `tests/gcp/test_memory_scenario.py` (passed locally & live GCP) · **Effort:** S
 
 ### P2-04 Use memory in explanation and limit topics [COMPLETED]
-- **Files:** `.kiro/prompts/trade-proposal-agent/v1.0.0.yaml` (add a `{user_preferences}` block, labeled non-authoritative), `backend/app/agents/trade_execution.py`, `backend/app/services/langgraph_nodes.py`, `backend/app/services/langgraph_graph.py`
+- **Files:** `prompts/trade-proposal-agent/v1.0.0.yaml` (add a `{user_preferences}` block, labeled non-authoritative), `backend/app/agents/trade_execution.py`, `backend/app/services/langgraph_nodes.py`, `backend/app/services/langgraph_graph.py`
 - **Scope:** Restrict memory topics to presentation preferences if supported (P0-04). Otherwise filter by category.
 - **Deps:** P2-03 · **Accept:** in session B, the explanation is short and includes a trade table. Trade numbers are unchanged.
-- **Status:** **PASSED** (2026-10-03). Added non-authoritative `user_preferences` section to `.kiro/prompts/trade-proposal-agent/v1.0.0.yaml`. Updated `TradeExecutionProposalAgent` to inject presentation preferences into template inputs without modifying deterministic trade calculations. Updated `_generate_summary` in `langgraph_nodes.py` to adapt summary brevity and include trade tables when requested by user preferences. Verified via unit and scenario tests (`test_memory_scenario.py`) confirming trade symbols, actions, and values remain 100% invariant while explanation reflects presentation preferences.
+- **Status:** **PASSED** (2026-10-03). Added non-authoritative `user_preferences` section to `prompts/trade-proposal-agent/v1.0.0.yaml`. Updated `TradeExecutionProposalAgent` to inject presentation preferences into template inputs without modifying deterministic trade calculations. Updated `_generate_summary` in `langgraph_nodes.py` to adapt summary brevity and include trade tables when requested by user preferences. Verified via unit and scenario tests (`test_memory_scenario.py`) confirming trade symbols, actions, and values remain 100% invariant while explanation reflects presentation preferences.
 - **Test:** memory scenario test asserts the trades equal the deterministic output (`test_memory_scenario.py`, 4 passed) · **Effort:** M
 
 ### P2-05 Memory delete endpoint [COMPLETED]
