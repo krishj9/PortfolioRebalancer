@@ -82,9 +82,7 @@ class TradeExecutionProposalAgent:
                     llm_analysis = await self._generate_llm_analysis(
                         snapshot, risk_policy, proposal
                     )
-                    if llm_analysis:
-                        # Add LLM analysis to proposal (would need to extend ExecutionProposalResponse)
-                        # For now, log it
+                    if llm_analysis and llm_analysis.get("proposal_rationale"):
                         logger.info(f"LLM proposal rationale: {llm_analysis.get('proposal_rationale', {}).get('proposal_summary')}")
                 except Exception as e:
                     logger.error(f"LLM analysis failed: {e}", exc_info=True)
@@ -145,7 +143,7 @@ class TradeExecutionProposalAgent:
         try:
             # Prepare template inputs
             template_inputs = {
-                "portfolio_id": snapshot.portfolio_id,
+                "portfolio_id": getattr(snapshot, "portfolio_id", getattr(snapshot, "account_id", snapshot.snapshot_id)),
                 "portfolio_value": float(snapshot.total_value),
                 "risk_tolerance": "MODERATE",  # TODO: Get from request
                 "drift_summary": "Portfolio drift analysis",  # TODO: Get from rebalancing agent
@@ -167,10 +165,10 @@ class TradeExecutionProposalAgent:
             rendered = self.prompt_loader.render_template(template, template_inputs)
             
             # Invoke LLM
-            response = await self.bedrock_adapter.invoke(
+            response = await self.bedrock_adapter.invoke_model(
                 model_id=self.llm_config.trade_proposal_agent_model,
                 system_prompt=rendered.system_prompt,
-                user_prompt=rendered.user_prompt,
+                prompt=rendered.user_prompt,
                 temperature=0.5,
                 max_tokens=1500,
             )
@@ -215,7 +213,7 @@ class TradeExecutionProposalAgent:
         try:
             # Prepare template inputs
             template_inputs = {
-                "portfolio_id": snapshot.portfolio_id,
+                "portfolio_id": getattr(snapshot, "portfolio_id", getattr(snapshot, "account_id", snapshot.snapshot_id)),
                 "portfolio_value": float(snapshot.total_value),
                 "current_allocation": [],  # TODO: Get from rebalancing agent
                 "target_allocation": [],  # TODO: Get from request
@@ -227,10 +225,10 @@ class TradeExecutionProposalAgent:
             rendered = self.prompt_loader.render_template(template, template_inputs)
             
             # Invoke LLM
-            response = await self.bedrock_adapter.invoke(
+            response = await self.bedrock_adapter.invoke_model(
                 model_id=self.llm_config.trade_proposal_agent_model,
                 system_prompt=rendered.system_prompt,
-                user_prompt=rendered.user_prompt,
+                prompt=rendered.user_prompt,
                 temperature=0.5,
                 max_tokens=1500,
             )

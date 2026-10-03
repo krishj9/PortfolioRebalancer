@@ -65,11 +65,12 @@ Paths are relative to the repo root. "New" means the file doesn't exist yet.
 - **Status:** **PASSED** (2026-10-03). Resolved defects D0a (Decimal/float operand in `validate_request`), D0b (parallel fan-out branch updates using `Annotated[..., operator.add]` reducers), D1 (`ApprovalArtifact` creation using `HumanApprovalWorkflowAgent`), and D2 (`WorkflowStore` injected into graph nodes to save portfolio, approval, and audit events). `test_graph_parity.py` passed with 100% identical trades, allocations, risk verdicts, and approval artifacts.
 - **Test:** `test_graph_parity.py` · **Effort:** M
 
-### P1-02 Fix agent LLM call name (D3)
+### P1-02 Fix agent LLM call name (D3) [COMPLETED]
 - **Goal:** Make the LLM path reachable.
-- **Files:** `backend/app/agents/memory.py`, `rebalancing.py`, `risk_compliance.py`, `trade_execution.py` (every `.invoke(` call on the adapter)
+- **Files:** `backend/app/agents/memory.py`, `rebalancing.py`, `risk_compliance.py`, `trade_execution.py`, `backend/app/adapters/bedrock.py`, `backend/tests/test_agent_llm_path.py`
 - **Scope:** Call `invoke_model(...)` with the existing signature. No behavior change when flags are off.
 - **Deps:** P0-01 · **Accept:** a unit test with a mocked adapter shows the LLM branch executes.
+- **Status:** **PASSED** (2026-10-03). Updated all `.invoke(` calls across all 4 agents to `invoke_model(...)`, supported `prompt` / `user_prompt` interchangeably, and fixed latent attribute access in LLM pathways. Created `test_agent_llm_path.py` which validates that all 4 agents invoke `invoke_model` when LLM flags are on, and fall back to deterministic behavior when flags are off.
 - **Test:** new `backend/tests/test_agent_llm_path.py` · **Effort:** S
 
 ### P1-03 Gemini model adapter

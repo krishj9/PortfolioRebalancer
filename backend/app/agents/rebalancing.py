@@ -152,23 +152,23 @@ class PortfolioRebalancingAgent:
         """
         try:
             # Calculate drift metrics
-            total_drift = sum(abs(float(item.drift_amount)) for item in drift)
-            max_drift = max((abs(float(item.drift_amount)) for item in drift), default=0.0)
+            total_drift = sum(abs(float(getattr(item, "drift_pct", getattr(item, "drift_amount", 0.0)))) for item in drift)
+            max_drift = max((abs(float(getattr(item, "drift_pct", getattr(item, "drift_amount", 0.0)))) for item in drift), default=0.0)
             
             # Prepare template inputs
             template_inputs = {
-                "portfolio_id": request.portfolio_id,
-                "risk_tolerance": request.client_profile.risk_tolerance,
+                "portfolio_id": getattr(request, "portfolio_id", getattr(request.account_profile, "account_id", "PORT-001")),
+                "risk_tolerance": getattr(request.risk_profile, "risk_level", getattr(request.client_profile, "risk_tolerance", "MODERATE")),
                 "current_allocation": [
-                    {"asset_class": k, "percentage": float(v) * 100}
+                    {"asset_class": k, "percentage": float(v) * (100 if float(v) <= 1.0 else 1)}
                     for k, v in current_allocation.items()
                 ],
                 "target_allocation": [
-                    {"asset_class": k, "percentage": float(v) * 100}
+                    {"asset_class": k, "percentage": float(v) * (100 if float(v) <= 1.0 else 1)}
                     for k, v in request.allocation_target.asset_class_targets.items()
                 ],
-                "total_drift": round(total_drift * 100, 2),
-                "max_drift": round(max_drift * 100, 2),
+                "total_drift": round(total_drift, 2),
+                "max_drift": round(max_drift, 2),
                 "drift_threshold": 5.0,  # TODO: Get from config
                 "holdings": [
                     {
@@ -184,10 +184,10 @@ class PortfolioRebalancingAgent:
             rendered = self.prompt_loader.render_template(template, template_inputs)
             
             # Invoke LLM
-            response = await self.bedrock_adapter.invoke(
+            response = await self.bedrock_adapter.invoke_model(
                 model_id=self.llm_config.rebalancing_agent_model,
                 system_prompt=rendered.system_prompt,
-                user_prompt=rendered.user_prompt,
+                prompt=rendered.user_prompt,
                 temperature=0.5,
                 max_tokens=1500,
             )
@@ -244,12 +244,12 @@ class PortfolioRebalancingAgent:
             
             # Prepare template inputs
             template_inputs = {
-                "portfolio_id": request.portfolio_id,
+                "portfolio_id": getattr(request, "portfolio_id", getattr(request.account_profile, "account_id", "PORT-001")),
                 "portfolio_value": float(request.portfolio_snapshot.total_value),
-                "risk_tolerance": request.client_profile.risk_tolerance,
+                "risk_tolerance": getattr(request.risk_profile, "risk_level", getattr(request.client_profile, "risk_tolerance", "MODERATE")),
                 "drift_summary": drift_explanation.get("drift_summary", ""),
                 "drifted_assets": drift_explanation.get("drifted_assets", []),
-                "constraints": request.client_profile.constraints or [],
+                "constraints": getattr(request.client_profile, "constraints", []) or [],
                 "market_context": "Market conditions are stable",  # TODO: Get from research agent
             }
             
@@ -258,10 +258,10 @@ class PortfolioRebalancingAgent:
             rendered = self.prompt_loader.render_template(template, template_inputs)
             
             # Invoke LLM
-            response = await self.bedrock_adapter.invoke(
+            response = await self.bedrock_adapter.invoke_model(
                 model_id=self.llm_config.rebalancing_agent_model,
                 system_prompt=rendered.system_prompt,
-                user_prompt=rendered.user_prompt,
+                prompt=rendered.user_prompt,
                 temperature=0.5,
                 max_tokens=1500,
             )

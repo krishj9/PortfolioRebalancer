@@ -353,6 +353,11 @@ class PromptTemplateLoader:
         Returns:
             Dictionary of template_name -> template_data
         """
+        if not yaml_path.exists():
+            repo_root_candidate = Path(__file__).resolve().parents[3] / yaml_path
+            if repo_root_candidate.exists():
+                yaml_path = repo_root_candidate
+
         with open(yaml_path, "r") as f:
             data = yaml.safe_load(f)
 

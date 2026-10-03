@@ -86,9 +86,7 @@ class RiskComplianceAgent:
                     llm_analysis = await self._generate_llm_analysis(
                         snapshot, drift, risk_profile, result
                     )
-                    if llm_analysis:
-                        # Add LLM analysis to result (would need to extend RiskPolicyResponse)
-                        # For now, log it
+                    if llm_analysis and llm_analysis.get("verdict_explanation"):
                         logger.info(f"LLM policy explanation: {llm_analysis.get('verdict_explanation', {}).get('verdict_summary')}")
                 except Exception as e:
                     logger.error(f"LLM analysis failed: {e}", exc_info=True)
@@ -159,8 +157,8 @@ class RiskComplianceAgent:
         try:
             # Prepare template inputs
             template_inputs = {
-                "portfolio_id": snapshot.portfolio_id,
-                "risk_tolerance": risk_profile.risk_tolerance if risk_profile else "UNKNOWN",
+                "portfolio_id": getattr(snapshot, "portfolio_id", getattr(snapshot, "account_id", snapshot.snapshot_id)),
+                "risk_tolerance": getattr(risk_profile, "risk_level", getattr(risk_profile, "risk_tolerance", "MODERATE")) if risk_profile else "MODERATE",
                 "verdict_status": policy_result.verdict.value,
                 "policy_rules": [
                     {
@@ -169,7 +167,7 @@ class RiskComplianceAgent:
                         "result": "FAIL",
                         "details": blocker,
                     }
-                    for i, blocker in enumerate(policy_result.blockers)
+                    for i, blocker in enumerate(getattr(policy_result, "blockers", []))
                 ] + [
                     {
                         "rule_id": f"WARN-{i}",
@@ -177,7 +175,7 @@ class RiskComplianceAgent:
                         "result": "PASS",
                         "details": warning,
                     }
-                    for i, warning in enumerate(policy_result.warnings)
+                    for i, warning in enumerate(getattr(policy_result, "warnings", []))
                 ],
                 "proposed_trades": [],  # TODO: Get from rebalancing proposal
             }
@@ -187,10 +185,10 @@ class RiskComplianceAgent:
             rendered = self.prompt_loader.render_template(template, template_inputs)
             
             # Invoke LLM
-            response = await self.bedrock_adapter.invoke(
+            response = await self.bedrock_adapter.invoke_model(
                 model_id=self.llm_config.risk_agent_model,
                 system_prompt=rendered.system_prompt,
-                user_prompt=rendered.user_prompt,
+                prompt=rendered.user_prompt,
                 temperature=0.3,  # Low temperature for consistent policy explanation
                 max_tokens=1500,
             )
@@ -248,7 +246,7 @@ class RiskComplianceAgent:
             
             # Prepare template inputs
             template_inputs = {
-                "portfolio_id": snapshot.portfolio_id,
+                "portfolio_id": getattr(snapshot, "portfolio_id", getattr(snapshot, "account_id", snapshot.snapshot_id)),
                 "portfolio_value": float(snapshot.total_value),
                 "violations": [
                     {
@@ -258,7 +256,7 @@ class RiskComplianceAgent:
                         "limit": "Unknown",
                         "excess": "Unknown",
                     }
-                    for i, blocker in enumerate(policy_result.blockers)
+                    for i, blocker in enumerate(getattr(policy_result, "blockers", []))
                 ],
                 "holdings": [
                     {
@@ -276,10 +274,10 @@ class RiskComplianceAgent:
             rendered = self.prompt_loader.render_template(template, template_inputs)
             
             # Invoke LLM
-            response = await self.bedrock_adapter.invoke(
+            response = await self.bedrock_adapter.invoke_model(
                 model_id=self.llm_config.risk_agent_model,
                 system_prompt=rendered.system_prompt,
-                user_prompt=rendered.user_prompt,
+                prompt=rendered.user_prompt,
                 temperature=0.5,
                 max_tokens=1500,
             )

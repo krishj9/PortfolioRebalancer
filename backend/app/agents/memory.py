@@ -169,20 +169,20 @@ class MemoryPersonalizationAgent:
                 template,
                 {
                     "client_id": request.client_profile.client_id,
-                    "risk_tolerance": request.client_profile.risk_tolerance,
-                    "investment_horizon": request.client_profile.investment_horizon,
-                    "constraints": ", ".join(request.client_profile.constraints or []),
-                    "portfolio_id": request.portfolio_id,
-                    "trigger_type": request.trigger_type,
-                    "request_context": f"Portfolio rebalancing triggered by {request.trigger_type}",
+                    "risk_tolerance": getattr(request.risk_profile, "risk_level", getattr(request.client_profile, "risk_tolerance", "MODERATE")),
+                    "investment_horizon": getattr(request.client_profile, "investment_horizon", "LONG_TERM"),
+                    "constraints": ", ".join(getattr(request.client_profile, "constraints", []) or []),
+                    "portfolio_id": getattr(request, "portfolio_id", getattr(request.account_profile, "account_id", "PORT-001")),
+                    "trigger_type": getattr(request, "trigger_type", "rebalance"),
+                    "request_context": f"Portfolio rebalancing triggered by {getattr(request, 'trigger_type', 'rebalance')}",
                 },
             )
             
             # Invoke LLM
-            response = await self.bedrock_adapter.invoke(
+            response = await self.bedrock_adapter.invoke_model(
                 model_id=self.llm_config.memory_agent_model,
                 system_prompt=rendered.system_prompt,
-                user_prompt=rendered.user_prompt,
+                prompt=rendered.user_prompt,
                 temperature=0.3,  # Low temperature for consistent query generation
                 max_tokens=500,
             )
@@ -248,10 +248,10 @@ class MemoryPersonalizationAgent:
             )
             
             # Invoke LLM
-            response = await self.bedrock_adapter.invoke(
+            response = await self.bedrock_adapter.invoke_model(
                 model_id=self.llm_config.memory_agent_model,
                 system_prompt=rendered.system_prompt,
-                user_prompt=rendered.user_prompt,
+                prompt=rendered.user_prompt,
                 temperature=0.5,  # Moderate temperature for synthesis
                 max_tokens=2000,
             )
@@ -309,10 +309,10 @@ class MemoryPersonalizationAgent:
             )
             
             # Invoke LLM
-            response = await self.bedrock_adapter.invoke(
+            response = await self.bedrock_adapter.invoke_model(
                 model_id=self.llm_config.memory_agent_model,
                 system_prompt=rendered.system_prompt,
-                user_prompt=rendered.user_prompt,
+                prompt=rendered.user_prompt,
                 temperature=0.3,  # Low temperature for consistent conflict detection
                 max_tokens=1000,
             )

@@ -139,27 +139,27 @@ class BedrockModelAdapter:
     async def invoke_model(
         self,
         model_id: str,
-        prompt: str,
+        prompt: Optional[str] = None,
         system_prompt: Optional[str] = None,
         temperature: float = 0.7,
         max_tokens: int = 2048,
         stop_sequences: Optional[list[str]] = None,
         metadata: Optional[dict] = None,
         timeout: Optional[int] = None,
+        user_prompt: Optional[str] = None,
     ) -> ModelResponse:
         """
         Invoke Bedrock model with retry logic and validation.
 
         Args:
             model_id: Bedrock model identifier
-            prompt: User prompt
+            prompt: User prompt (or user_prompt)
             system_prompt: Optional system prompt
             temperature: Sampling temperature (0.0-1.0)
             max_tokens: Maximum tokens to generate
             stop_sequences: Optional stop sequences
             metadata: Optional metadata for logging
             timeout: Optional timeout override
-
         Returns:
             ModelResponse with content, token usage, and metadata
 
@@ -168,6 +168,7 @@ class BedrockModelAdapter:
             ModelTimeoutError: When timeout is exceeded
             ModelValidationError: When response validation fails
         """
+        prompt = prompt if prompt is not None else (user_prompt or "")
         start_time = datetime.now()
         timeout_seconds = timeout or self.timeout_config.standard_timeout
 
@@ -206,6 +207,9 @@ class BedrockModelAdapter:
             )
 
         raise ModelInvocationError(f"Failed to parse response for model: {model_id}")
+
+    # Backward compatibility alias
+    invoke = invoke_model
 
     async def invoke_model_streaming(
         self,
