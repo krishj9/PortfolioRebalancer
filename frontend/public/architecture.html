@@ -1,1244 +1,1466 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Asset Management Platform — Architecture</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
-<style>
-  :root {
-    --bg: #0f1419;
-    --bg2: #1a1f2e;
-    --bg3: #252b3b;
-    --border: #2d3548;
-    --blue: #3b82f6;
-    --green: #10b981;
-    --amber: #f59e0b;
-    --red: #ef4444;
-    --purple: #a855f7;
-    --text: #e4e7eb;
-    --text2: #9ca3af;
-    --sidebar-width: 260px;
-  }
-
-  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-  html { scroll-behavior: smooth; }
-
-  body {
-    font-family: 'Inter', sans-serif;
-    background: var(--bg);
-    color: var(--text);
-    line-height: 1.7;
-    font-size: 15px;
-  }
-
-  /* ── Sidebar ── */
-  .sidebar {
-    position: fixed;
-    top: 0; left: 0;
-    width: var(--sidebar-width);
-    height: 100vh;
-    background: var(--bg2);
-    border-right: 1px solid var(--border);
-    overflow-y: auto;
-    z-index: 100;
-    display: flex;
-    flex-direction: column;
-  }
-
-  .sidebar-header {
-    padding: 24px 20px 16px;
-    border-bottom: 1px solid var(--border);
-  }
-
-  .sidebar-logo {
-    font-size: 11px;
-    font-weight: 600;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    color: var(--blue);
-    margin-bottom: 4px;
-  }
-
-  .sidebar-title {
-    font-size: 13px;
-    font-weight: 500;
-    color: var(--text2);
-    line-height: 1.4;
-  }
-
-  .back-link {
-    display: inline-block;
-    margin-top: 10px;
-    font-size: 12px;
-    font-weight: 600;
-    color: var(--blue);
-    text-decoration: none;
-    padding: 5px 10px;
-    border: 1px solid rgba(59,130,246,0.35);
-    border-radius: 5px;
-    background: rgba(59,130,246,0.08);
-    transition: background 0.15s;
-  }
-
-  .back-link:hover {
-    background: rgba(59,130,246,0.16);
-  }
-
-  .sidebar-nav {
-    padding: 12px 0;
-    flex: 1;
-  }
-
-  .nav-item {
-    display: block;
-    padding: 8px 20px;
-    font-size: 13px;
-    color: var(--text2);
-    text-decoration: none;
-    transition: all 0.15s;
-    border-left: 3px solid transparent;
-    line-height: 1.4;
-  }
-
-  .nav-item:hover {
-    color: var(--text);
-    background: var(--bg3);
-    border-left-color: var(--blue);
-  }
-
-  .nav-item.active {
-    color: var(--blue);
-    background: rgba(59,130,246,0.08);
-    border-left-color: var(--blue);
-  }
-
-  .nav-num {
-    display: inline-block;
-    width: 20px;
-    font-size: 11px;
-    color: var(--text2);
-    opacity: 0.6;
-    font-variant-numeric: tabular-nums;
-  }
-
-  /* ── Main content ── */
-  .main {
-    margin-left: var(--sidebar-width);
-    padding: 48px 48px 80px;
-    max-width: 1100px;
-  }
-
-  /* ── Page header ── */
-  .page-header {
-    margin-bottom: 48px;
-    padding-bottom: 32px;
-    border-bottom: 1px solid var(--border);
-  }
-
-  .page-header h1 {
-    font-size: 28px;
-    font-weight: 700;
-    color: var(--text);
-    margin-bottom: 8px;
-    letter-spacing: -0.02em;
-  }
-
-  .page-header .subtitle {
-    font-size: 15px;
-    color: var(--text2);
-  }
-
-  .page-header .badge-row {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    margin-top: 20px;
-  }
-
-  /* ── Section cards ── */
-  .section-card {
-    background: var(--bg2);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    padding: 32px;
-    margin-bottom: 28px;
-    scroll-margin-top: 24px;
-  }
-
-  .section-card h2 {
-    font-size: 18px;
-    font-weight: 600;
-    color: var(--text);
-    margin-bottom: 20px;
-    padding-bottom: 12px;
-    border-bottom: 1px solid var(--border);
-    display: flex;
-    align-items: center;
-    gap: 10px;
-  }
-
-  .section-num {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 26px;
-    height: 26px;
-    background: var(--bg3);
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    font-size: 11px;
-    font-weight: 600;
-    color: var(--blue);
-    flex-shrink: 0;
-  }
-
-  .section-card h3 {
-    font-size: 14px;
-    font-weight: 600;
-    color: var(--text);
-    margin: 20px 0 10px;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-  }
-
-  .section-card p {
-    color: var(--text2);
-    margin-bottom: 12px;
-  }
-
-  .section-card ul, .section-card ol {
-    color: var(--text2);
-    padding-left: 20px;
-    margin-bottom: 12px;
-  }
-
-  .section-card li {
-    margin-bottom: 5px;
-  }
-
-  .section-card strong {
-    color: var(--text);
-    font-weight: 500;
-  }
-
-  /* ── Code blocks ── */
-  pre {
-    margin: 16px 0;
-    border-radius: 8px;
-    overflow-x: auto;
-    border: 1px solid var(--border);
-  }
-
-  pre code.hljs {
-    font-size: 13px;
-    line-height: 1.6;
-    border-radius: 8px;
-  }
-
-  /* ASCII diagrams */
-  pre.ascii {
-    background: var(--bg3);
-    border: 1px solid var(--border);
-    padding: 20px;
-    font-family: 'Courier New', Courier, monospace;
-    font-size: 12.5px;
-    line-height: 1.5;
-    color: var(--blue);
-    overflow-x: auto;
-    white-space: pre;
-  }
-
-  code:not(.hljs) {
-    background: var(--bg3);
-    border: 1px solid var(--border);
-    padding: 2px 6px;
-    border-radius: 4px;
-    font-size: 12.5px;
-    font-family: 'Courier New', Courier, monospace;
-    color: var(--amber);
-  }
-
-  /* ── Tables ── */
-  .table-wrap {
-    overflow-x: auto;
-    margin: 16px 0;
-    border-radius: 8px;
-    border: 1px solid var(--border);
-  }
-
-  table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 13.5px;
-  }
-
-  thead tr {
-    background: var(--bg3);
-  }
-
-  th {
-    padding: 10px 14px;
-    text-align: left;
-    font-weight: 600;
-    font-size: 12px;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    color: var(--text2);
-    border-bottom: 1px solid var(--border);
-  }
-
-  td {
-    padding: 10px 14px;
-    color: var(--text2);
-    border-bottom: 1px solid rgba(45,53,72,0.5);
-    vertical-align: top;
-  }
-
-  td strong { color: var(--text); }
-
-  tbody tr:nth-child(even) { background: rgba(37,43,59,0.4); }
-  tbody tr:last-child td { border-bottom: none; }
-  tbody tr:hover { background: rgba(59,130,246,0.05); }
-
-  /* ── Tech pills ── */
-  .pill {
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    padding: 4px 10px;
-    border-radius: 20px;
-    font-size: 12px;
-    font-weight: 500;
-    border: 1px solid;
-  }
-
-  .pill-blue  { background: rgba(59,130,246,0.12); border-color: rgba(59,130,246,0.35); color: #60a5fa; }
-  .pill-green { background: rgba(16,185,129,0.12); border-color: rgba(16,185,129,0.35); color: #34d399; }
-  .pill-amber { background: rgba(245,158,11,0.12); border-color: rgba(245,158,11,0.35); color: #fbbf24; }
-  .pill-purple{ background: rgba(168,85,247,0.12); border-color: rgba(168,85,247,0.35); color: #c084fc; }
-  .pill-red   { background: rgba(239,68,68,0.12);  border-color: rgba(239,68,68,0.35);  color: #f87171; }
-  .pill-gray  { background: rgba(156,163,175,0.12);border-color: rgba(156,163,175,0.35);color: #d1d5db; }
-
-  /* ── Agent cards ── */
-  .agent-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-    gap: 16px;
-    margin-top: 16px;
-  }
-
-  .agent-card {
-    background: var(--bg3);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 18px 18px 18px 22px;
-    border-left-width: 4px;
-    position: relative;
-  }
-
-  .agent-card.local    { border-left-color: var(--blue); }
-  .agent-card.a2a      { border-left-color: var(--purple); }
-  .agent-card.mcp      { border-left-color: var(--amber); }
-  .agent-card.determ   { border-left-color: var(--green); }
-
-  .agent-card-header {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    margin-bottom: 10px;
-    gap: 8px;
-  }
-
-  .agent-card-title {
-    font-size: 14px;
-    font-weight: 600;
-    color: var(--text);
-  }
-
-  .agent-type-badge {
-    font-size: 10px;
-    font-weight: 700;
-    letter-spacing: 0.08em;
-    padding: 2px 7px;
-    border-radius: 4px;
-    flex-shrink: 0;
-  }
-
-  .badge-local  { background: rgba(59,130,246,0.2);  color: #60a5fa; }
-  .badge-a2a    { background: rgba(168,85,247,0.2);  color: #c084fc; }
-  .badge-mcp    { background: rgba(245,158,11,0.2);  color: #fbbf24; }
-  .badge-determ { background: rgba(16,185,129,0.2);  color: #34d399; }
-
-  .agent-card p {
-    font-size: 13px;
-    color: var(--text2);
-    margin-bottom: 8px;
-  }
-
-  .agent-card .model-tag {
-    font-size: 11px;
-    color: var(--text2);
-    opacity: 0.7;
-    font-family: 'Courier New', monospace;
-  }
-
-  /* ── Back to top ── */
-  #back-to-top {
-    position: fixed;
-    bottom: 28px;
-    right: 28px;
-    width: 42px;
-    height: 42px;
-    background: var(--blue);
-    color: #fff;
-    border: none;
-    border-radius: 50%;
-    cursor: pointer;
-    font-size: 18px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    box-shadow: 0 4px 16px rgba(59,130,246,0.4);
-    transition: all 0.2s;
-    opacity: 0;
-    pointer-events: none;
-    z-index: 200;
-  }
-
-  #back-to-top.visible {
-    opacity: 1;
-    pointer-events: auto;
-  }
-
-  #back-to-top:hover {
-    background: #2563eb;
-    transform: translateY(-2px);
-  }
-
-  /* ── Mobile hamburger ── */
-  .menu-toggle {
-    display: none;
-    position: fixed;
-    top: 14px;
-    left: 14px;
-    z-index: 300;
-    background: var(--bg2);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    width: 38px;
-    height: 38px;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    color: var(--text);
-    font-size: 18px;
-  }
-
-  .sidebar-overlay {
-    display: none;
-    position: fixed;
-    inset: 0;
-    background: rgba(0,0,0,0.6);
-    z-index: 99;
-  }
-
-  /* ── Responsive ── */
-  @media (max-width: 900px) {
-    .main {
-      margin-left: 0;
-      padding: 72px 20px 80px;
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Architecture Presentation — Asset Management Multi-Agent Platform</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-dark: #07090e;
+      --bg-card: rgba(15, 23, 42, 0.75);
+      --bg-card-hover: rgba(22, 33, 58, 0.85);
+      --bg-glass: rgba(255, 255, 255, 0.03);
+      --border-subtle: rgba(255, 255, 255, 0.08);
+      --border-bright: rgba(56, 189, 248, 0.3);
+      
+      --cyan: #38bdf8;
+      --cyan-glow: rgba(56, 189, 248, 0.25);
+      --indigo: #6366f1;
+      --indigo-glow: rgba(99, 102, 241, 0.25);
+      --emerald: #10b981;
+      --emerald-glow: rgba(16, 185, 129, 0.2);
+      --amber: #f59e0b;
+      --amber-glow: rgba(245, 158, 11, 0.2);
+      --purple: #a855f7;
+      --rose: #f43f5e;
+      
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --text-dim: #64748b;
+      
+      --font-display: 'Outfit', sans-serif;
+      --font-body: 'Plus Jakarta Sans', sans-serif;
+      --font-code: 'JetBrains Mono', monospace;
+      
+      --slide-transition: 0.45s cubic-bezier(0.16, 1, 0.3, 1);
     }
 
-    .sidebar {
-      transform: translateX(-100%);
-      transition: transform 0.25s ease;
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background-color: var(--bg-dark);
+      color: var(--text-main);
+      font-family: var(--font-body);
+      min-height: 100vh;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      user-select: none;
+      background-image: 
+        radial-gradient(circle at 15% 15%, rgba(99, 102, 241, 0.12) 0%, transparent 40%),
+        radial-gradient(circle at 85% 20%, rgba(56, 189, 248, 0.1) 0%, transparent 45%),
+        radial-gradient(circle at 50% 85%, rgba(16, 185, 129, 0.08) 0%, transparent 40%);
     }
 
-    .sidebar.open {
-      transform: translateX(0);
+    /* ── Progress Bar ── */
+    #progress-bar {
+      position: fixed;
+      top: 0;
+      left: 0;
+      height: 3px;
+      background: linear-gradient(90deg, var(--indigo), var(--cyan), var(--emerald));
+      width: 0%;
+      z-index: 1000;
+      transition: width 0.3s ease;
+      box-shadow: 0 0 10px var(--cyan);
     }
 
-    .sidebar-overlay.open {
-      display: block;
+    /* ── Top Header Navigation ── */
+    .deck-header {
+      height: 64px;
+      padding: 0 32px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--border-subtle);
+      background: rgba(7, 9, 14, 0.8);
+      backdrop-filter: blur(12px);
+      z-index: 100;
+      flex-shrink: 0;
     }
 
-    .menu-toggle {
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .brand-logo {
+      width: 32px;
+      height: 32px;
+      background: linear-gradient(135deg, var(--indigo), var(--cyan));
+      border-radius: 8px;
+      display: grid;
+      place-items: center;
+      font-weight: 800;
+      font-family: var(--font-display);
+      font-size: 16px;
+      color: #fff;
+      box-shadow: 0 0 15px var(--indigo-glow);
+    }
+
+    .brand-title {
+      font-family: var(--font-display);
+      font-weight: 700;
+      font-size: 16px;
+      letter-spacing: -0.01em;
+      color: var(--text-main);
+    }
+
+    .brand-subtitle {
+      font-size: 12px;
+      color: var(--cyan);
+      font-weight: 500;
+      margin-left: 6px;
+      padding: 2px 8px;
+      background: rgba(56, 189, 248, 0.1);
+      border-radius: 12px;
+      border: 1px solid rgba(56, 189, 248, 0.2);
+    }
+
+    .header-center {
+      font-family: var(--font-display);
+      font-size: 13px;
+      color: var(--text-muted);
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      font-weight: 600;
+    }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .btn-header {
+      padding: 6px 14px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      text-decoration: none;
+      color: var(--text-main);
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--border-subtle);
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      cursor: pointer;
+    }
+
+    .btn-header:hover {
+      background: rgba(255, 255, 255, 0.1);
+      border-color: var(--border-bright);
+      color: var(--cyan);
+    }
+
+    /* ── Main Presentation Canvas ── */
+    .deck-container {
+      flex: 1;
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px 48px 90px;
+    }
+
+    .slide {
+      position: absolute;
+      width: min(1360px, 94vw);
+      height: min(720px, 80vh);
+      opacity: 0;
+      visibility: hidden;
+      transform: translateY(24px) scale(0.98);
+      transition: opacity var(--slide-transition), transform var(--slide-transition), visibility var(--slide-transition);
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-start;
+      padding: 40px 48px;
+      background: var(--bg-card);
+      backdrop-filter: blur(20px);
+      border: 1px solid var(--border-subtle);
+      border-radius: 20px;
+      box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.7);
+      overflow-y: auto;
+      pointer-events: none;
+    }
+
+    .slide.active {
+      opacity: 1;
+      visibility: visible;
+      transform: translateY(0) scale(1);
+      pointer-events: auto;
+      z-index: 10;
+    }
+
+    /* ── Slide Header & Typography ── */
+    .slide-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      padding: 4px 12px;
+      border-radius: 20px;
+      width: fit-content;
+      margin-bottom: 12px;
+    }
+
+    .badge-cyan { background: rgba(56, 189, 248, 0.15); color: var(--cyan); border: 1px solid rgba(56, 189, 248, 0.3); }
+    .badge-indigo { background: rgba(99, 102, 241, 0.15); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.3); }
+    .badge-emerald { background: rgba(16, 185, 129, 0.15); color: var(--emerald); border: 1px solid rgba(16, 185, 129, 0.3); }
+    .badge-amber { background: rgba(245, 158, 11, 0.15); color: var(--amber); border: 1px solid rgba(245, 158, 11, 0.3); }
+    .badge-purple { background: rgba(168, 85, 247, 0.15); color: var(--purple); border: 1px solid rgba(168, 85, 247, 0.3); }
+    .badge-rose { background: rgba(244, 63, 94, 0.15); color: var(--rose); border: 1px solid rgba(244, 63, 94, 0.3); }
+
+    .slide-title {
+      font-family: var(--font-display);
+      font-size: 32px;
+      font-weight: 700;
+      line-height: 1.2;
+      color: #fff;
+      margin-bottom: 8px;
+      letter-spacing: -0.02em;
+    }
+
+    .slide-subtitle {
+      font-size: 15px;
+      color: var(--text-muted);
+      line-height: 1.5;
+      margin-bottom: 24px;
+      max-width: 900px;
+    }
+
+    /* ── Content Layout Grids ── */
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+      flex: 1;
+    }
+
+    .grid-3 {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+      flex: 1;
+    }
+
+    .grid-4 {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+      flex: 1;
+    }
+
+    .feature-card {
+      background: rgba(255, 255, 255, 0.025);
+      border: 1px solid var(--border-subtle);
+      border-radius: 14px;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      transition: all 0.25s ease;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .feature-card:hover {
+      background: var(--bg-card-hover);
+      border-color: var(--border-bright);
+      transform: translateY(-2px);
+    }
+
+    .feature-card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0; height: 2px;
+      background: linear-gradient(90deg, transparent, var(--card-accent, var(--cyan)), transparent);
+      opacity: 0.6;
+    }
+
+    .card-icon {
+      font-size: 22px;
+      width: 42px;
+      height: 42px;
+      border-radius: 10px;
+      display: grid;
+      place-items: center;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid var(--border-subtle);
+      margin-bottom: 4px;
+    }
+
+    .card-title {
+      font-family: var(--font-display);
+      font-size: 16px;
+      font-weight: 700;
+      color: #fff;
+    }
+
+    .card-desc {
+      font-size: 13px;
+      color: var(--text-muted);
+      line-height: 1.55;
+    }
+
+    .card-tag {
+      font-family: var(--font-code);
+      font-size: 11px;
+      color: var(--cyan);
+      background: rgba(56, 189, 248, 0.08);
+      padding: 3px 8px;
+      border-radius: 6px;
+      width: fit-content;
+      margin-top: auto;
+    }
+
+    /* ── Code / Protocol Previews ── */
+    .code-box {
+      background: #090d16;
+      border: 1px solid var(--border-subtle);
+      border-radius: 10px;
+      padding: 16px;
+      font-family: var(--font-code);
+      font-size: 12px;
+      color: #e2e8f0;
+      overflow-x: auto;
+      line-height: 1.6;
+    }
+
+    .code-kw { color: #f43f5e; font-weight: 600; }
+    .code-fn { color: #38bdf8; }
+    .code-str { color: #34d399; }
+    .code-cm { color: #64748b; font-style: italic; }
+    .code-num { color: #fbbf24; }
+
+    /* ── Architecture Diagram Blocks ── */
+    .arch-flow {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      flex: 1;
+      justify-content: center;
+    }
+
+    .arch-tier {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid var(--border-subtle);
+      border-radius: 12px;
+      padding: 14px 20px;
+    }
+
+    .arch-tier-title {
+      width: 140px;
+      font-family: var(--font-display);
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--cyan);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      flex-shrink: 0;
+    }
+
+    .arch-items {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      flex: 1;
+    }
+
+    .arch-pill {
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.09);
+      padding: 6px 14px;
+      border-radius: 8px;
+      font-size: 12px;
+      font-weight: 600;
+      color: #e2e8f0;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s;
+    }
+
+    .arch-pill:hover {
+      background: rgba(56, 189, 248, 0.1);
+      border-color: var(--cyan);
+      color: #fff;
+    }
+
+    /* ── Interactive Tabs Inside Slides ── */
+    .tab-bar {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 16px;
+      border-bottom: 1px solid var(--border-subtle);
+      padding-bottom: 8px;
+    }
+
+    .tab-btn {
+      padding: 6px 14px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      background: transparent;
+      border: 1px solid transparent;
+      color: var(--text-muted);
+      transition: all 0.2s;
+    }
+
+    .tab-btn.active {
+      background: rgba(56, 189, 248, 0.12);
+      color: var(--cyan);
+      border-color: rgba(56, 189, 248, 0.3);
+    }
+
+    .tab-content { display: none; }
+    .tab-content.active { display: block; animation: fadeIn 0.3s ease; }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(6px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* ── Title Slide Splendor ── */
+    .title-slide {
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+      padding: 60px;
+      background: radial-gradient(circle at center, rgba(30, 41, 59, 0.8) 0%, rgba(15, 23, 42, 0.95) 100%);
+    }
+
+    .title-headline {
+      font-family: var(--font-display);
+      font-size: 48px;
+      font-weight: 800;
+      line-height: 1.15;
+      letter-spacing: -0.03em;
+      margin: 16px 0 20px;
+      background: linear-gradient(135deg, #ffffff 0%, #cbd5e1 50%, #38bdf8 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .title-subhead {
+      font-size: 18px;
+      color: var(--text-muted);
+      max-width: 780px;
+      line-height: 1.6;
+      margin: 0 auto 36px;
+    }
+
+    .title-stats {
+      display: flex;
+      gap: 32px;
+      justify-content: center;
+    }
+
+    .stat-box {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid var(--border-subtle);
+      border-radius: 12px;
+      padding: 14px 28px;
+    }
+
+    .stat-val {
+      font-family: var(--font-display);
+      font-size: 26px;
+      font-weight: 800;
+      color: var(--cyan);
+    }
+
+    .stat-label {
+      font-size: 12px;
+      color: var(--text-muted);
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    /* ── Floating Controls HUD ── */
+    .deck-hud {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 8px 16px;
+      background: rgba(15, 23, 42, 0.85);
+      backdrop-filter: blur(16px);
+      border: 1px solid var(--border-subtle);
+      border-radius: 40px;
+      box-shadow: 0 10px 35px rgba(0, 0, 0, 0.5);
+      z-index: 200;
+    }
+
+    .hud-btn {
+      width: 38px;
+      height: 38px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid var(--border-subtle);
+      color: var(--text-main);
+      display: grid;
+      place-items: center;
+      cursor: pointer;
+      font-size: 14px;
+      transition: all 0.2s;
+    }
+
+    .hud-btn:hover {
+      background: var(--cyan);
+      color: #090d16;
+      border-color: var(--cyan);
+      box-shadow: 0 0 12px var(--cyan-glow);
+    }
+
+    .hud-counter {
+      font-family: var(--font-code);
+      font-size: 13px;
+      font-weight: 600;
+      padding: 0 8px;
+      color: var(--text-muted);
+    }
+
+    .hud-counter span {
+      color: var(--cyan);
+    }
+
+    .hud-divider {
+      width: 1px;
+      height: 20px;
+      background: var(--border-subtle);
+      margin: 0 4px;
+    }
+
+    /* ── Grid Overview Modal ── */
+    .overview-modal {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(7, 9, 14, 0.94);
+      backdrop-filter: blur(20px);
+      z-index: 1000;
+      display: none;
+      flex-direction: column;
+      padding: 40px 60px;
+      overflow-y: auto;
+    }
+
+    .overview-modal.open {
       display: flex;
     }
 
-    .agent-grid {
-      grid-template-columns: 1fr;
+    .overview-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 30px;
     }
-  }
 
-  @media (max-width: 600px) {
-    .main { padding: 72px 14px 80px; }
-    .section-card { padding: 20px; }
-    .page-header h1 { font-size: 22px; }
-  }
+    .overview-title {
+      font-family: var(--font-display);
+      font-size: 24px;
+      font-weight: 700;
+    }
 
-  /* ── Misc ── */
-  .design-principle {
-    background: rgba(59,130,246,0.07);
-    border: 1px solid rgba(59,130,246,0.25);
-    border-radius: 8px;
-    padding: 14px 18px;
-    margin: 16px 0;
-    font-size: 14px;
-    color: var(--text);
-  }
+    .overview-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      gap: 20px;
+    }
 
-  .design-principle strong {
-    color: var(--blue);
-  }
+    .thumb-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: 12px;
+      padding: 16px;
+      cursor: pointer;
+      transition: all 0.2s;
+      position: relative;
+    }
 
-  .info-box {
-    background: var(--bg3);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 14px 18px;
-    margin: 12px 0;
-    font-size: 13.5px;
-  }
+    .thumb-card:hover, .thumb-card.active {
+      border-color: var(--cyan);
+      box-shadow: 0 0 20px var(--cyan-glow);
+      transform: scale(1.02);
+    }
 
-  .kv-list {
-    display: grid;
-    grid-template-columns: auto 1fr;
-    gap: 6px 16px;
-    font-size: 13.5px;
-    margin: 10px 0;
-  }
+    .thumb-num {
+      font-family: var(--font-code);
+      font-size: 11px;
+      color: var(--cyan);
+      margin-bottom: 6px;
+    }
 
-  .kv-key {
-    color: var(--text2);
-    font-weight: 500;
-    white-space: nowrap;
-  }
+    .thumb-title {
+      font-family: var(--font-display);
+      font-size: 14px;
+      font-weight: 600;
+      color: #fff;
+    }
 
-  .kv-val {
-    color: var(--text);
-  }
-</style>
+    /* Custom Scrollbars */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.15); border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.25); }
+  </style>
 </head>
 <body>
 
-<button class="menu-toggle" id="menuToggle" aria-label="Toggle navigation">&#9776;</button>
-<div class="sidebar-overlay" id="sidebarOverlay"></div>
+  <!-- Top Real-Time Progress Indicator -->
+  <div id="progress-bar"></div>
 
-<nav class="sidebar" id="sidebar">
-  <div class="sidebar-header">
-    <div class="sidebar-logo">Architecture Docs</div>
-    <div class="sidebar-title">Asset Management Platform</div>
-    <a href="javascript:void(0)" onclick="window.close(); return false;" class="back-link">← Close &amp; Return to Dashboard</a>
+  <!-- Top Bar -->
+  <header class="deck-header">
+    <div class="brand">
+      <div class="brand-logo">PR</div>
+      <div>
+        <span class="brand-title">Portfolio Rebalancer</span>
+        <span class="brand-subtitle">Architecture Deck</span>
+      </div>
+    </div>
+
+    <div class="header-center" id="slide-topic-badge">
+      Overview & Vision
+    </div>
+
+    <div class="header-actions">
+      <button class="btn-header" id="btn-toggle-grid" title="Slide Overview Grid (Key: O)">
+        ▦ All Slides
+      </button>
+      <a href="/" class="btn-header" title="Return to Portfolio Advisor Dashboard">
+        ← Back to Platform
+      </a>
+    </div>
+  </header>
+
+  <!-- Presentation Viewport -->
+  <main class="deck-container">
+
+    <!-- ══════════════════════════════════════════════════════════════
+         SLIDE 1: Title & Executive Vision
+    ══════════════════════════════════════════════════════════════ -->
+    <section class="slide title-slide active" data-topic="Executive Overview">
+      <div class="slide-badge badge-indigo">Enterprise AI Architecture</div>
+      <h1 class="title-headline">Next-Generation Autonomous Multi-Agent Portfolio Rebalancer</h1>
+      <p class="title-subhead">
+        A dual-cloud, enterprise-grade decision-support platform pairing LangGraph multi-agent orchestration, Vertex AI Gemini / AWS Bedrock models, A2A & MCP protocols, and cryptographic Human-in-the-Loop governance.
+      </p>
+
+      <div class="title-stats">
+        <div class="stat-box">
+          <span class="stat-val">8</span>
+          <span class="stat-label">Specialist Agents</span>
+        </div>
+        <div class="stat-box">
+          <span class="stat-val">A2A + MCP</span>
+          <span class="stat-label">Protocols Active</span>
+        </div>
+        <div class="stat-box">
+          <span class="stat-val">100%</span>
+          <span class="stat-label">Deterministic Safety</span>
+        </div>
+        <div class="stat-box">
+          <span class="stat-val">0-Trust</span>
+          <span class="stat-label">Security & Privacy</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══════════════════════════════════════════════════════════════
+         SLIDE 2: Core Philosophy & Dual-Cloud Topology
+    ══════════════════════════════════════════════════════════════ -->
+    <section class="slide" data-topic="System Topology">
+      <div class="slide-badge badge-cyan">Topology Blueprint</div>
+      <h2 class="slide-title">Separation of Concerns: Deterministic Math vs. AI Synthesis</h2>
+      <p class="slide-subtitle">
+        Probabilistic models synthesize market context and explain rationales, while strict financial calculations, concentration limits, and approval tokens are 100% deterministic and isolated.
+      </p>
+
+      <div class="arch-flow">
+        <div class="arch-tier">
+          <div class="arch-tier-title">1. Intake & Client</div>
+          <div class="arch-items">
+            <div class="arch-pill">Angular 21 Signals UI</div>
+            <div class="arch-pill">Identity-Aware Proxy (IAP)</div>
+            <div class="arch-pill">SSE Market Stream</div>
+            <div class="arch-pill">Correlation Metadata Injection</div>
+          </div>
+        </div>
+
+        <div class="arch-tier">
+          <div class="arch-tier-title">2. Orchestration</div>
+          <div class="arch-items">
+            <div class="arch-pill" style="border-color: var(--indigo); color: #818cf8;">LangGraph State Machine</div>
+            <div class="arch-pill">Supervisor Workflow Controller</div>
+            <div class="arch-pill">Conditional Routing & Circuit Breakers</div>
+            <div class="arch-pill">State Transition Checkpointing</div>
+          </div>
+        </div>
+
+        <div class="arch-tier">
+          <div class="arch-tier-title">3. Specialist Swarm</div>
+          <div class="arch-items">
+            <div class="arch-pill">Memory Bank (User Scoped)</div>
+            <div class="arch-pill" style="border-color: var(--cyan);">Market Research Agent (A2A)</div>
+            <div class="arch-pill" style="border-color: var(--emerald);">Sentiment Agent (MCP)</div>
+            <div class="arch-pill">Rebalancing Agent</div>
+            <div class="arch-pill">Risk & Policy Agent</div>
+            <div class="arch-pill">Trade Proposal Agent</div>
+          </div>
+        </div>
+
+        <div class="arch-tier">
+          <div class="arch-tier-title">4. Compute & Data</div>
+          <div class="arch-items">
+            <div class="arch-pill" style="border-color: var(--amber);">Isolated Tools Engine (Private Microservice)</div>
+            <div class="arch-pill">BigQuery Analytics Stream</div>
+            <div class="arch-pill">Firestore / DynamoDB Store</div>
+            <div class="arch-pill">OpenTelemetry Spans</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══════════════════════════════════════════════════════════════
+         SLIDE 3: The Specialist Agent Swarm
+    ══════════════════════════════════════════════════════════════ -->
+    <section class="slide" data-topic="AI Agent Swarm">
+      <div class="slide-badge badge-purple">Agentic Swarm</div>
+      <h2 class="slide-title">8 Explicit Bounded Specialist AI Agents</h2>
+      <p class="slide-subtitle">
+        Every agent performs a bounded, testable responsibility. Agents operate in parallel where independent, and sequence dependencies through the LangGraph shared state envelope.
+      </p>
+
+      <div class="grid-4">
+        <div class="feature-card" style="--card-accent: var(--purple);">
+          <div class="card-icon">🧠</div>
+          <div class="card-title">Memory & Persona</div>
+          <div class="card-desc">Retrieves user preferences and detects contradictions with past rebalance decisions.</div>
+          <div class="card-tag">IN_PROCESS · BEDROCK/GEMINI</div>
+        </div>
+
+        <div class="feature-card" style="--card-accent: var(--cyan);">
+          <div class="card-icon">🌐</div>
+          <div class="card-title">Research Agent</div>
+          <div class="card-desc">Synthesizes macro regime (BULL/BEAR/VOLATILE) and sector context for target assets.</div>
+          <div class="card-tag">REMOTE A2A · FASTAPI</div>
+        </div>
+
+        <div class="feature-card" style="--card-accent: var(--emerald);">
+          <div class="card-icon">📰</div>
+          <div class="card-title">Sentiment Agent</div>
+          <div class="card-desc">Evaluates real-time symbol sentiment via JSON-RPC standard tools.</div>
+          <div class="card-tag">REMOTE MCP · JSON-RPC 2.0</div>
+        </div>
+
+        <div class="feature-card" style="--card-accent: var(--indigo);">
+          <div class="card-icon">⚖️</div>
+          <div class="card-title">Rebalancing Agent</div>
+          <div class="card-desc">Calculates asset drift deterministically and provides structured strategic reasoning.</div>
+          <div class="card-tag">HYBRID · MATH + LLM</div>
+        </div>
+
+        <div class="feature-card" style="--card-accent: var(--rose);">
+          <div class="card-icon">🛡️</div>
+          <div class="card-title">Risk & Compliance</div>
+          <div class="card-desc">Enforces non-negotiable policy checks (concentration, cash floors) with LLM explanations.</div>
+          <div class="card-tag">STRICT GATE · AUDITED</div>
+        </div>
+
+        <div class="feature-card" style="--card-accent: var(--amber);">
+          <div class="card-icon">📈</div>
+          <div class="card-title">Trade Proposal</div>
+          <div class="card-desc">Generates exact buy/sell trade lists, tax-impact notes, and client-facing rationale.</div>
+          <div class="card-tag">HYBRID · DECIMAL MATH</div>
+        </div>
+
+        <div class="feature-card" style="--card-accent: var(--cyan);">
+          <div class="card-icon">👤</div>
+          <div class="card-title">Human Approval</div>
+          <div class="card-desc">Derives SHA-256 recommendation hashes and manages immutable approval tokens.</div>
+          <div class="card-tag">HITL GATEWAY · DETERMINISTIC</div>
+        </div>
+
+        <div class="feature-card" style="--card-accent: var(--emerald);">
+          <div class="card-icon">📡</div>
+          <div class="card-title">Market Stream</div>
+          <div class="card-desc">Emits simulated equity/bond/yield market ticks and triggers rebalance events via SSE.</div>
+          <div class="card-tag">SSE STREAM · REALTIME</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══════════════════════════════════════════════════════════════
+         SLIDE 4: A2A & MCP Protocols
+    ══════════════════════════════════════════════════════════════ -->
+    <section class="slide" data-topic="A2A & MCP Protocols">
+      <div class="slide-badge badge-emerald">Standard Protocols</div>
+      <h2 class="slide-title">Agent-to-Agent (A2A) & Model Context Protocol (MCP)</h2>
+      <p class="slide-subtitle">
+        Decoupled agent microservices communicating over standard industry protocols, preventing vendor lock-in and enabling polyglot agent ecosystems.
+      </p>
+
+      <div class="tab-bar">
+        <button class="tab-btn active" onclick="switchTab(event, 'tab-a2a')">Agent-to-Agent (A2A) Protocol</button>
+        <button class="tab-btn" onclick="switchTab(event, 'tab-mcp')">Model Context Protocol (MCP)</button>
+        <button class="tab-btn" onclick="switchTab(event, 'tab-fallback')">Resilience & Local Fallbacks</button>
+      </div>
+
+      <div id="tab-a2a" class="tab-content active">
+        <div class="grid-2">
+          <div class="feature-card">
+            <div class="card-title">Autonomous Micro-Agent Execution</div>
+            <div class="card-desc">
+              The Research Agent runs as an independent A2A service at <span style="color: var(--cyan);">:8101/a2a/research</span>. It ingests the portfolio context envelope, performs model synthesis, and returns structured regime insights without exposing internal state.
+            </div>
+            <div class="card-desc" style="margin-top: 8px;">
+              • Decoupled scaling & independent deployment<br>
+              • Standardized task correlation envelope (`request_id`, `task`, `symbols`)<br>
+              • High throughput async HTTP execution with client timeouts
+            </div>
+          </div>
+          <div class="code-box">
+<span class="code-cm">// A2A Request Envelope</span>
+{
+  <span class="code-kw">"task"</span>: <span class="code-str">"portfolio_research"</span>,
+  <span class="code-kw">"request_id"</span>: <span class="code-str">"req_9a4f21"</span>,
+  <span class="code-kw">"symbols"</span>: [<span class="code-str">"EQUITY"</span>, <span class="code-str">"BONDS"</span>, <span class="code-str">"CASH"</span>],
+  <span class="code-kw">"portfolio_request"</span>: { ... }
+}
+<span class="code-cm">// A2A Structured Response</span>
+{
+  <span class="code-kw">"protocol"</span>: <span class="code-str">"A2A"</span>,
+  <span class="code-kw">"summary"</span>: <span class="code-str">"Macro conditions warrant rebalancing..."</span>,
+  <span class="code-kw">"payload"</span>: { <span class="code-kw">"regime"</span>: <span class="code-str">"VOLATILE"</span>, <span class="code-kw">"confidence"</span>: <span class="code-num">0.85</span> }
+}</div>
+        </div>
+      </div>
+
+      <div id="tab-mcp" class="tab-content">
+        <div class="grid-2">
+          <div class="feature-card">
+            <div class="card-title">Anthropic MCP JSON-RPC 2.0 Standard</div>
+            <div class="card-desc">
+              The Sentiment MCP Server runs at <span style="color: var(--emerald);">:8201/mcp</span>, exposing standard tool discovery (<span style="color: var(--cyan);">tools/list</span>) and tool execution (<span style="color: var(--cyan);">tools/call</span>). Any MCP-compliant client can orchestrate it seamlessly.
+            </div>
+            <div class="card-desc" style="margin-top: 8px;">
+              • Dynamic tool schema negotiation at runtime<br>
+              • Standardized JSON-RPC error codes and payload schemas<br>
+              • Reusable across LangGraph, Claude Desktop, and Gemini Agent Engine
+            </div>
+          </div>
+          <div class="code-box">
+<span class="code-cm">// MCP tools/call Payload</span>
+{
+  <span class="code-kw">"jsonrpc"</span>: <span class="code-str">"2.0"</span>,
+  <span class="code-kw">"id"</span>: <span class="code-str">"sentiment-check"</span>,
+  <span class="code-kw">"method"</span>: <span class="code-str">"tools/call"</span>,
+  <span class="code-kw">"params"</span>: {
+    <span class="code-kw">"name"</span>: <span class="code-str">"analyze_symbol_news_sentiment"</span>,
+    <span class="code-kw">"arguments"</span>: { <span class="code-kw">"symbols"</span>: [<span class="code-str">"EQUITY"</span>, <span class="code-str">"BONDS"</span>] }
+  }
+}
+<span class="code-cm">// MCP Result Output</span>
+{
+  <span class="code-kw">"result"</span>: { <span class="code-kw">"sentiment"</span>: <span class="code-str">"CAUTIOUS"</span>, <span class="code-kw">"score"</span>: <span class="code-num">-0.10</span> }
+}</div>
+        </div>
+      </div>
+
+      <div id="tab-fallback" class="tab-content">
+        <div class="grid-2">
+          <div class="feature-card">
+            <div class="card-title">Zero-Downtime Fallback Circuit Breakers</div>
+            <div class="card-desc">
+              If remote network calls to A2A or MCP servers time out or fail, the supervisor gracefully engages in-process deterministic fallbacks. The system never halts or enters an unrecoverable failure state.
+            </div>
+            <div class="card-desc" style="margin-top: 8px;">
+              • Stage results explicitly tag <span class="code-str">execution_location: "in_process_fallback"</span><br>
+              • UI displays protocol origin indicators for 100% transparency<br>
+              • Circuit breakers reset automatically upon service restoration
+            </div>
+          </div>
+          <div class="code-box">
+<span class="code-cm"># Resilience Circuit Breaker in Orchestrator</span>
+<span class="code-kw">try</span>:
+    stage, data = <span class="code-kw">await</span> self._run_remote(request)
+<span class="code-kw">except</span> (httpx.HTTPError, ValueError):
+    logger.warning(<span class="code-str">"A2A remote failed. Using in-process fallback."</span>)
+    stage, data = self._run_local(request)
+
+<span class="code-cm"># Workflow State set to DEGRADED without blocking human review</span>
+state.workflow_state = <span class="code-str">"DEGRADED"</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══════════════════════════════════════════════════════════════
+         SLIDE 5: AI Governance & Guardrails
+    ══════════════════════════════════════════════════════════════ -->
+    <section class="slide" data-topic="AI Governance">
+      <div class="slide-badge badge-rose">Governance & Safety</div>
+      <h2 class="slide-title">Multi-Layered AI Governance & Safety Guardrails</h2>
+      <p class="slide-subtitle">
+        Enterprise financial AI demands rigorous defense-in-depth: prompt injection prevention, strict JSON schema validation, and confidence threshold gates before any output touches advisor eyes.
+      </p>
+
+      <div class="grid-3">
+        <div class="feature-card" style="--card-accent: var(--rose);">
+          <div class="card-icon">🛡️</div>
+          <div class="card-title">Model Armor & Sanitization</div>
+          <div class="card-desc">
+            Incoming requests, user preferences, and free-form prompts are passed through the Model Armor layer. Injection attacks, jailbreaks, and delimiter escapes trigger immediate safety halts.
+          </div>
+          <div class="card-tag">CONTENT_BLOCKED DETECTION</div>
+        </div>
+
+        <div class="feature-card" style="--card-accent: var(--amber);">
+          <div class="card-icon">📐</div>
+          <div class="card-title">Pydantic Schema Validation</div>
+          <div class="card-desc">
+            All LLM outputs are validated against strict Pydantic schemas. If a model hallucinates an invalid asset class, negative price, or malformed JSON, validation fails and triggers deterministic fallback.
+          </div>
+          <div class="card-tag">SCHEMA CONTRACT INTEGRITY</div>
+        </div>
+
+        <div class="feature-card" style="--card-accent: var(--emerald);">
+          <div class="card-icon">📊</div>
+          <div class="card-title">Confidence Threshold Gating</div>
+          <div class="card-desc">
+            Agents output a confidence score (<span style="color: var(--cyan);">0.0 - 1.0</span>). When confidence drops below configured threshold (e.g. 0.70), the workflow marks state as <span style="color: var(--amber);">LOW_CONFIDENCE</span> and alerts the advisor.
+          </div>
+          <div class="card-tag">LOW_CONFIDENCE ROUTING</div>
+        </div>
+      </div>
+
+      <div class="code-box" style="margin-top: 16px;">
+<span class="code-cm"># Governance Guardrail Flow (Input Sanitization -> Model -> Schema Validation -> Confidence Gate)</span>
+sanitized_inputs = InputSanitizer.validate_template_inputs(user_prompt)
+response = <span class="code-kw">await</span> model_adapter.invoke(system_prompt=tmpl.system_prompt, prompt=sanitized_inputs)
+validation = <span class="code-kw">await</span> response_validator.validate_response(response.content, schema=OutputSchema, min_confidence=<span class="code-num">0.70</span>)
+
+<span class="code-kw">if not</span> validation.is_valid:
+    logger.warning(<span class="code-str">f"Governance breach or schema violation: {validation.violations}"</span>)
+    <span class="code-kw">return</span> fallback_safe_response()</div>
+    </section>
+
+    <!-- ══════════════════════════════════════════════════════════════
+         SLIDE 6: Security & Zero Trust Architecture
+    ══════════════════════════════════════════════════════════════ -->
+    <section class="slide" data-topic="Zero Trust Security">
+      <div class="slide-badge badge-indigo">Security Architecture</div>
+      <h2 class="slide-title">Enterprise Security: Zero Trust & Microservice Isolation</h2>
+      <p class="slide-subtitle">
+        Eliminating single points of failure with Identity-Aware Proxy (IAP), role-based tokens, private VPC microservices, and automatic PII data redaction across all layers.
+      </p>
+
+      <div class="grid-2">
+        <div class="feature-card">
+          <div class="card-title">🔒 Deterministic Tools Isolation</div>
+          <div class="card-desc">
+            The core mathematical and persistence engine is packaged as an isolated private microservice (<span class="code-str">rebalancer-tools</span>). It enforces strict caller validation via Google Cloud IAM.
+          </div>
+          <div class="card-desc" style="margin-top: 8px;">
+            • <span style="color: var(--cyan);">Private Internal Ingress</span>: No direct internet access<br>
+            • <span style="color: var(--cyan);">Enforced Caller Identity</span>: Only authenticated runtime service accounts can invoke tools<br>
+            • Prevents direct SQL/DynamoDB/Firestore exposure from client layers
+          </div>
+        </div>
+
+        <div class="feature-card">
+          <div class="card-title">🛡️ Data Protection & PII Redaction</div>
+          <div class="card-desc">
+            Enterprise logging automatically scrubs sensitive data. Investor account numbers, client identifiers, and exact dollar holdings are filtered prior to telemetry emission.
+          </div>
+          <div class="card-desc" style="margin-top: 8px;">
+            • <span style="color: var(--emerald);">Cloud Logging Redaction</span>: Structured JSON masking<br>
+            • <span style="color: var(--emerald);">Prompt Injection Quarantine</span>: Unsafe inputs isolated from training / cache<br>
+            • <span style="color: var(--emerald);">Scoped Authorization</span>: Users can only inspect or delete their own memories
+          </div>
+        </div>
+      </div>
+
+      <div class="code-box" style="margin-top: 16px;">
+<span class="code-cm"># Caller Authorization Enforcement in Isolated Tools Service</span>
+<span class="code-kw">if</span> settings.tools_caller_check == <span class="code-str">"enforce"</span>:
+    caller = request.headers.get(<span class="code-str">"X-Forwarded-Client-Cert"</span>) <span class="code-kw">or</span> request.headers.get(<span class="code-str">"X-Caller-Identity"</span>)
+    <span class="code-kw">if</span> caller <span class="code-kw">not in</span> settings.allowed_tool_callers:
+        <span class="code-kw">raise</span> HTTPException(status_code=<span class="code-num">403</span>, detail=<span class="code-str">"Caller not authorized for tools engine"</span>)</div>
+    </section>
+
+    <!-- ══════════════════════════════════════════════════════════════
+         SLIDE 7: Memory Architecture & Managed Context
+    ══════════════════════════════════════════════════════════════ -->
+    <section class="slide" data-topic="Memory Architecture">
+      <div class="slide-badge badge-amber">Context & Memory</div>
+      <h2 class="slide-title">Memory Architecture: Multi-Tiered Context Management</h2>
+      <p class="slide-subtitle">
+        Long-term contextual memory provides personalized advice without runaway prompt token costs, security leakage, or stale preferences.
+      </p>
+
+      <div class="grid-3">
+        <div class="feature-card" style="--card-accent: var(--amber);">
+          <div class="card-icon">🗄️</div>
+          <div class="card-title">User-Scoped Memory Bank</div>
+          <div class="card-desc">
+            Memories are partitioned strictly by `user_id`. One investor's ESG preferences or risk aversion never bleed into another account's graph execution.
+          </div>
+          <div class="card-tag">TENANT ISOLATION</div>
+        </div>
+
+        <div class="feature-card" style="--card-accent: var(--cyan);">
+          <div class="card-icon">⚡</div>
+          <div class="card-title">Top-5 Capping & Truncation</div>
+          <div class="card-desc">
+            Dynamic hydration caps memories to the top-5 most relevant facts and truncates each to 1,000 characters. Prevents prompt bloat and maintains low latency.
+          </div>
+          <div class="card-tag">TOKEN BUDGET OPTIMIZATION</div>
+        </div>
+
+        <div class="feature-card" style="--card-accent: var(--emerald);">
+          <div class="card-icon">🔄</div>
+          <div class="card-title">Async Post-Approval Ingestion</div>
+          <div class="card-desc">
+            Memory generation runs asynchronously in background threads upon human approval. The user receives immediate response without waiting for memory extraction.
+          </div>
+          <div class="card-tag">ZERO LATENCY PENALTY</div>
+        </div>
+      </div>
+
+      <div class="grid-2" style="margin-top: 16px;">
+        <div class="feature-card">
+          <div class="card-title">Contradiction Detection</div>
+          <div class="card-desc">
+            When new portfolio targets contradict historical memories (e.g. asking for aggressive growth after recording extreme risk aversion), the memory agent flags the conflict directly in the recommendation package.
+          </div>
+        </div>
+        <div class="feature-card">
+          <div class="card-title">Full CRUD & Preference Reversion</div>
+          <div class="card-desc">
+            Advisors can inspect all stored memories via <span class="code-str">GET /api/memory</span> and permanently revoke outdated preferences via <span class="code-str">DELETE /api/memory/{id}</span>, restoring baseline neutrality.
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══════════════════════════════════════════════════════════════
+         SLIDE 8: Observability, Telemetry & Analytics
+    ══════════════════════════════════════════════════════════════ -->
+    <section class="slide" data-topic="Observability & Telemetry">
+      <div class="slide-badge badge-cyan">Full-Stack Observability</div>
+      <h2 class="slide-title">Distributed Telemetry, BigQuery Analytics & Auditing</h2>
+      <p class="slide-subtitle">
+        Every agent execution is tracked with distributed tracing spans, structured cloud logging, and real-time streaming to BigQuery for analytics.
+      </p>
+
+      <div class="grid-3">
+        <div class="feature-card" style="--card-accent: var(--cyan);">
+          <div class="card-icon">⏱️</div>
+          <div class="card-title">Distributed Tracing</div>
+          <div class="card-desc">
+            Every step runs inside a <span class="code-str">telemetry_span</span> context. Latencies, model IDs, token counts, and error states are recorded and surfaced via provider trace URLs.
+          </div>
+          <div class="card-tag">OPENTELEMETRY / CLOUD TRACE</div>
+        </div>
+
+        <div class="feature-card" style="--card-accent: var(--indigo);">
+          <div class="card-icon">📊</div>
+          <div class="card-title">BigQuery Event Stream</div>
+          <div class="card-desc">
+            Rebalancing proposals and approval actions stream directly into <span class="code-str">portfolio_analytics.proposal_events</span> for longitudinal analytics and auditing.
+          </div>
+          <div class="card-tag">REALTIME STREAMING PIPELINE</div>
+        </div>
+
+        <div class="feature-card" style="--card-accent: var(--emerald);">
+          <div class="card-icon">🔏</div>
+          <div class="card-title">Immutable Audit Trail</div>
+          <div class="card-desc">
+            Recommendations generate deterministic SHA-256 hashes. Approvals are cryptographically tied to the exact proposal payload seen by the advisor.
+          </div>
+          <div class="card-tag">SHA-256 HASH VERIFICATION</div>
+        </div>
+      </div>
+
+      <div class="code-box" style="margin-top: 16px;">
+<span class="code-cm">-- Sample Analytics Query in BigQuery (Tracking Model Latency & Confidence by Agent)</span>
+<span class="code-kw">SELECT</span>
+  agent_name,
+  <span class="code-fn">AVG</span>(latency_ms) <span class="code-kw">AS</span> avg_latency,
+  <span class="code-fn">AVG</span>(confidence_score) <span class="code-kw">AS</span> avg_confidence,
+  <span class="code-fn">COUNTIF</span>(status = <span class="code-str">'FAILED'</span>) <span class="code-kw">AS</span> failures
+<span class="code-kw">FROM</span> `portfolio_analytics.proposal_events`
+<span class="code-kw">WHERE</span> timestamp >= <span class="code-fn">TIMESTAMP_SUB</span>(<span class="code-fn">CURRENT_TIMESTAMP</span>(), <span class="code-kw">INTERVAL</span> <span class="code-num">24</span> <span class="code-kw">HOUR</span>)
+<span class="code-kw">GROUP BY</span> agent_name <span class="code-kw">ORDER BY</span> avg_latency <span class="code-kw">DESC</span>;</div>
+    </section>
+
+    <!-- ══════════════════════════════════════════════════════════════
+         SLIDE 9: Human-in-the-Loop & Approval State Machine
+    ══════════════════════════════════════════════════════════════ -->
+    <section class="slide" data-topic="HITL Governance">
+      <div class="slide-badge badge-rose">Human-in-the-Loop</div>
+      <h2 class="slide-title">Cryptographic Approval State Machine</h2>
+      <p class="slide-subtitle">
+        Zero Autonomous Trade Execution: AI agents produce decision-support packages, but trades can never be placed without explicit, non-repudiable advisor authorization.
+      </p>
+
+      <div class="grid-2">
+        <div class="feature-card">
+          <div class="card-title">Approval Lifecycle & Security Guards</div>
+          <div class="card-desc">
+            1. <strong>Proposal Generation</strong>: Agents formulate trade actions and package with calculated drift and policy verdicts.<br><br>
+            2. <strong>Cryptographic Binding</strong>: The payload is hashed with SHA-256 and locked into an approval artifact with deterministic ID (`apr_...`).<br><br>
+            3. <strong>Stale Proposal Guard</strong>: When the advisor clicks "Approve", the server re-verifies `expected_recommendation_hash`. If market ticks altered the portfolio in the meantime, the stale approval is rejected.<br><br>
+            4. <strong>Audit Event Persistence</strong>: Accepted transitions record immutable events in the audit table with user identity and timestamp.
+          </div>
+        </div>
+
+        <div class="arch-flow">
+          <div class="arch-tier" style="border-left: 4px solid var(--cyan);">
+            <div class="arch-tier-title" style="color: var(--cyan);">1. Draft</div>
+            <div class="arch-items">
+              <span class="arch-pill">Agents Execute</span>
+              <span class="arch-pill">Drafting Recommendation</span>
+            </div>
+          </div>
+          <div class="arch-tier" style="border-left: 4px solid var(--amber);">
+            <div class="arch-tier-title" style="color: var(--amber);">2. Pending</div>
+            <div class="arch-items">
+              <span class="arch-pill">Artifact Locked</span>
+              <span class="arch-pill">Awaiting Advisor Review</span>
+            </div>
+          </div>
+          <div class="arch-tier" style="border-left: 4px solid var(--emerald);">
+            <div class="arch-tier-title" style="color: var(--emerald);">3. Approved</div>
+            <div class="arch-items">
+              <span class="arch-pill">Hash Verified</span>
+              <span class="arch-pill">Trades Committed</span>
+              <span class="arch-pill">Audit Emitted</span>
+            </div>
+          </div>
+          <div class="arch-tier" style="border-left: 4px solid var(--rose);">
+            <div class="arch-tier-title" style="color: var(--rose);">Rejected / Blocked</div>
+            <div class="arch-items">
+              <span class="arch-pill">Policy Violation</span>
+              <span class="arch-pill">Advisor Overrides</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══════════════════════════════════════════════════════════════
+         SLIDE 10: Production Cloud Infrastructure
+    ══════════════════════════════════════════════════════════════ -->
+    <section class="slide" data-topic="Cloud Infrastructure">
+      <div class="slide-badge badge-indigo">Cloud & CI/CD</div>
+      <h2 class="slide-title">Cloud Infrastructure & Production Deployment</h2>
+      <p class="slide-subtitle">
+        Cloud Run serverless containers, Terraform Infrastructure as Code, Cloud Build automated pipelines, and seamless local Docker Compose parity.
+      </p>
+
+      <div class="grid-3">
+        <div class="feature-card" style="--card-accent: var(--indigo);">
+          <div class="card-icon">☁️</div>
+          <div class="card-title">Google Cloud Run</div>
+          <div class="card-desc">
+            Dual microservices (<span class="code-str">rebalancer-api</span> and <span class="code-str">rebalancer-tools</span>) with autoscaling, serverless VPC access, and zero idle costs.
+          </div>
+          <div class="card-tag">SERVERLESS CONTAINER PLATFORM</div>
+        </div>
+
+        <div class="feature-card" style="--card-accent: var(--cyan);">
+          <div class="card-icon">🏗️</div>
+          <div class="card-title">Terraform IaC</div>
+          <div class="card-desc">
+            Complete infrastructure defined declaratively: BigQuery datasets, Cloud Run services, IAM bindings, and artifact repositories with environment parity.
+          </div>
+          <div class="card-tag">DECLARATIVE INFRASTRUCTURE</div>
+        </div>
+
+        <div class="feature-card" style="--card-accent: var(--emerald);">
+          <div class="card-icon">🚀</div>
+          <div class="card-title">Cloud Build CI/CD</div>
+          <div class="card-desc">
+            Automated pipeline executing 121 unit & property tests, multi-stage container builds, vulnerability scans, and staged deployments on commit.
+          </div>
+          <div class="card-tag">AUTOMATED QUALITY GATES</div>
+        </div>
+      </div>
+
+      <div class="feature-card" style="margin-top: 16px;">
+        <div class="card-title">Local Development Parity with Docker Compose</div>
+        <div class="card-desc">
+          Developers run <span class="code-str">docker compose up</span> for identical local execution: FastAPI Backend (:8000), Remote Research Agent A2A (:8101), Sentiment MCP Server (:8201), DynamoDB Local (:55000), and Angular Vite/Dev Server (:4200).
+        </div>
+      </div>
+    </section>
+
+    <!-- ══════════════════════════════════════════════════════════════
+         SLIDE 11: Summary & Key Takeaways
+    ══════════════════════════════════════════════════════════════ -->
+    <section class="slide title-slide" data-topic="Summary & Takeaways">
+      <div class="slide-badge badge-emerald">Key Takeaways</div>
+      <h2 class="title-headline" style="font-size: 38px;">The 5 Pillars of Enterprise Autonomous AI</h2>
+      <p class="title-subhead">
+        A blueprint for deploying AI agents in heavily regulated financial environments.
+      </p>
+
+      <div class="grid-3" style="text-align: left; width: 100%; margin-bottom: 24px;">
+        <div class="feature-card" style="--card-accent: var(--cyan);">
+          <div class="card-title">1. Deterministic Math First</div>
+          <div class="card-desc">AI advises, but strict financial calculations and compliance rules never rely on probabilistic tokens.</div>
+        </div>
+
+        <div class="feature-card" style="--card-accent: var(--indigo);">
+          <div class="card-icon" style="display:none;"></div>
+          <div class="card-title">2. Open Protocols</div>
+          <div class="card-desc">A2A and MCP decouple agent services, making tools and capabilities reusable across any LLM orchestrator.</div>
+        </div>
+
+        <div class="feature-card" style="--card-accent: var(--rose);">
+          <div class="card-title">3. Multi-Layer Guardrails</div>
+          <div class="card-desc">Model armor blocks injection attacks; Pydantic schema validation prevents hallucinated recommendations.</div>
+        </div>
+
+        <div class="feature-card" style="--card-accent: var(--amber);">
+          <div class="card-title">4. Scoped Memory</div>
+          <div class="card-desc">Tenant-isolated memory banks maintain long-term personalization with zero cross-tenant bleeding.</div>
+        </div>
+
+        <div class="feature-card" style="--card-accent: var(--emerald);">
+          <div class="card-title">5. Cryptographic HITL</div>
+          <div class="card-desc">No trade executes without verified advisor approval backed by an immutable SHA-256 audit trail.</div>
+        </div>
+
+        <div class="feature-card" style="--card-accent: var(--purple);">
+          <div class="card-title">6. Full Observability</div>
+          <div class="card-desc">Distributed traces and real-time BigQuery streaming deliver end-to-end operational visibility.</div>
+        </div>
+      </div>
+
+      <div style="display: flex; gap: 16px; justify-content: center;">
+        <a href="/" class="btn-header" style="padding: 10px 24px; font-size: 14px; background: var(--cyan); color: #090d16; border-color: var(--cyan);">
+          🚀 Launch Platform Demo
+        </a>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ── Floating Bottom Navigation HUD ── -->
+  <nav class="deck-hud">
+    <button class="hud-btn" id="btn-prev" title="Previous Slide (← / PageUp)">◀</button>
+    
+    <div class="hud-counter">
+      <span id="current-slide-num">01</span> / <span id="total-slides-num">11</span>
+    </div>
+
+    <button class="hud-btn" id="btn-next" title="Next Slide (→ / Space / PageDown)">▶</button>
+
+    <div class="hud-divider"></div>
+
+    <button class="hud-btn" id="btn-grid" title="Slide Overview (O / Esc)">▦</button>
+    <button class="hud-btn" id="btn-fullscreen" title="Toggle Fullscreen (F)">⛶</button>
+  </nav>
+
+  <!-- ── Visual Overview Modal ── -->
+  <div class="overview-modal" id="overview-modal">
+    <div class="overview-header">
+      <h3 class="overview-title">All Slides</h3>
+      <button class="btn-header" id="btn-close-overview">✕ Close</button>
+    </div>
+    <div class="overview-grid" id="overview-grid">
+      <!-- Generated via JS -->
+    </div>
   </div>
-  <div class="sidebar-nav">
-    <a class="nav-item" href="#s1"><span class="nav-num">01</span> System Overview</a>
-    <a class="nav-item" href="#s2"><span class="nav-num">02</span> High-Level Architecture</a>
-    <a class="nav-item" href="#s3"><span class="nav-num">03</span> Frontend Architecture</a>
-    <a class="nav-item" href="#s4"><span class="nav-num">04</span> Backend Architecture</a>
-    <a class="nav-item" href="#s5"><span class="nav-num">05</span> LangGraph Orchestration</a>
-    <a class="nav-item" href="#s6"><span class="nav-num">06</span> Agent Implementations</a>
-    <a class="nav-item" href="#s7"><span class="nav-num">07</span> Human-in-the-Loop</a>
-    <a class="nav-item" href="#s8"><span class="nav-num">08</span> Conversational AI</a>
-    <a class="nav-item" href="#s9"><span class="nav-num">09</span> AWS Infrastructure</a>
-    <a class="nav-item" href="#s10"><span class="nav-num">10</span> Local Development</a>
-    <a class="nav-item" href="#s11"><span class="nav-num">11</span> Deployment</a>
-    <a class="nav-item" href="#s12"><span class="nav-num">12</span> Key Design Decisions</a>
-  </div>
-</nav>
 
-<main class="main">
-  <div class="page-header">
-    <h1>Asset Management Platform</h1>
-    <p class="subtitle">Comprehensive Architecture Reference &mdash; AI-powered portfolio rebalancing with human-in-the-loop approval</p>
-    <div class="badge-row">
-      <span class="pill pill-blue">Angular 19</span>
-      <span class="pill pill-blue">TypeScript</span>
-      <span class="pill pill-green">Python 3.12</span>
-      <span class="pill pill-green">FastAPI</span>
-      <span class="pill pill-green">LangGraph</span>
-      <span class="pill pill-green">Pydantic v2</span>
-      <span class="pill pill-amber">AWS Bedrock</span>
-      <span class="pill pill-amber">Claude Sonnet</span>
-      <span class="pill pill-amber">Claude Haiku</span>
-      <span class="pill pill-purple">A2A Protocol</span>
-      <span class="pill pill-purple">MCP Protocol</span>
-      <span class="pill pill-red">DynamoDB</span>
-      <span class="pill pill-gray">Terraform</span>
-      <span class="pill pill-gray">AWS Lambda</span>
-      <span class="pill pill-gray">API Gateway v2</span>
-    </div>
-  </div>
-
-  <!-- ── Section 1: System Overview ── -->
-  <section class="section-card" id="s1">
-    <h2><span class="section-num">1</span> System Overview</h2>
-    <p>An AI-powered portfolio rebalancing decision-support platform. It monitors a simulated portfolio for allocation drift, orchestrates a multi-agent AI workflow to generate rebalancing recommendations, and requires explicit human approval before any trades are applied.</p>
-
-    <div class="design-principle">
-      <strong>Core design principle:</strong> The system never executes trades autonomously. Every recommendation goes through a human-in-the-loop approval step backed by an immutable audit trail.
-    </div>
-
-    <h3>Key Technologies</h3>
-    <div class="table-wrap">
-      <table>
-        <thead><tr><th>Layer</th><th>Technology</th></tr></thead>
-        <tbody>
-          <tr><td><strong>Frontend</strong></td><td>Angular 19, TypeScript, Angular Signals, SCSS</td></tr>
-          <tr><td><strong>Backend</strong></td><td>Python 3.12, FastAPI, LangGraph, Pydantic v2</td></tr>
-          <tr><td><strong>AI</strong></td><td>AWS Bedrock (Claude models via cross-region inference profiles)</td></tr>
-          <tr><td><strong>Agent protocols</strong></td><td>A2A (Agent-to-Agent) for Research, MCP (Model Context Protocol) for Sentiment</td></tr>
-          <tr><td><strong>Persistence</strong></td><td>DynamoDB (AWS hosted in prod, DynamoDB Local in dev)</td></tr>
-          <tr><td><strong>Infrastructure</strong></td><td>Terraform, AWS Lambda (Mangum adapter), API Gateway v2, S3</td></tr>
-        </tbody>
-      </table>
-    </div>
-  </section>
-
-  <!-- ── Section 2: High-Level Architecture ── -->
-  <section class="section-card" id="s2">
-    <h2><span class="section-num">2</span> High-Level Architecture</h2>
-<pre class="ascii">&#x250C;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2510;
-&#x2502;  Browser (Angular 19 SPA)                                           &#x2502;
-&#x2502;  - Two-panel dashboard: market monitor + AI recommendation          &#x2502;
-&#x2502;  - Angular Signals for reactive state                               &#x2502;
-&#x2502;  - HTTP interceptor injects x-api-token on every request            &#x2502;
-&#x2502;  - SSE subscription for live market stream                          &#x2502;
-&#x2514;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x252C;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2518;
-                           &#x2502; HTTPS + x-api-token
-                           &#x25BC;
-&#x250C;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2510;
-&#x2502;  API Gateway v2 HTTP API (us-east-1)                                &#x2502;
-&#x2502;  - CORS: GET/POST/PUT/DELETE/OPTIONS, allow-headers: x-api-token    &#x2502;
-&#x2502;  - Stage throttling: 10 req/s sustained, 20 burst                   &#x2502;
-&#x2502;  - Routes: ANY /{proxy+} &#x2192; Backend Lambda                           &#x2502;
-&#x2502;            ANY /a2a/research &#x2192; Research Agent Lambda                &#x2502;
-&#x2502;            ANY /mcp &#x2192; Sentiment MCP Lambda                          &#x2502;
-&#x2514;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x252C;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2518;
-                           &#x2502;
-          &#x250C;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x253C;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2510;
-          &#x25BC;                &#x25BC;                &#x25BC;
-&#x250C;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2510;  &#x250C;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2510;  &#x250C;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2510;
-&#x2502; Backend      &#x2502;  &#x2502; Research     &#x2502;  &#x2502; Sentiment    &#x2502;
-&#x2502; Lambda       &#x2502;  &#x2502; Agent Lambda &#x2502;  &#x2502; MCP Lambda   &#x2502;
-&#x2502; 512MB &#xB7; 30s  &#x2502;  &#x2502; 256MB &#xB7; 15s  &#x2502;  &#x2502; 256MB &#xB7; 15s  &#x2502;
-&#x2502; FastAPI +    &#x2502;  &#x2502; A2A Protocol &#x2502;  &#x2502; MCP JSON-RPC &#x2502;
-&#x2502; LangGraph    &#x2502;  &#x2502; Bedrock LLM  &#x2502;  &#x2502; Bedrock LLM  &#x2502;
-&#x2514;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x252C;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2518;  &#x2514;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2518;  &#x2514;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2518;
-       &#x2502;
-       &#x251C;&#x2500;&#x2500;&#x2192; DynamoDB (6 tables)
-       &#x251C;&#x2500;&#x2500;&#x2192; Bedrock (Claude Sonnet + Haiku)
-       &#x251C;&#x2500;&#x2500;&#x2192; Research Agent Lambda (HTTP /a2a/research)
-       &#x2514;&#x2500;&#x2500;&#x2192; Sentiment MCP Lambda (HTTP /mcp)</pre>
-  </section>
-
-  <!-- ── Section 3: Frontend Architecture ── -->
-  <section class="section-card" id="s3">
-    <h2><span class="section-num">3</span> Frontend Architecture</h2>
-
-    <h3>Technology</h3>
-    <ul>
-      <li>Angular 19 with standalone components</li>
-      <li>Angular Signals (<code>signal()</code>, <code>computed()</code>) for all reactive state — no RxJS BehaviorSubject</li>
-      <li>SCSS with a professional dark theme design system</li>
-      <li>Vite dev server with <code>/api/*</code> proxy to <code>http://localhost:8000</code> in development</li>
-    </ul>
-
-    <h3>Runtime Configuration</h3>
-    <p>The frontend reads <code>window.assetManagementConfig</code> from <code>app-config.js</code> at runtime:</p>
-<pre><code class="language-javascript">window.assetManagementConfig = {
-  apiBaseUrl: 'https://r62c0mmp4i.execute-api.us-east-1.amazonaws.com',
-  apiToken: '&lt;token&gt;'
-};</code></pre>
-    <p>This file is overwritten during S3 deployment with the actual API Gateway URL and token. In local dev, <code>apiBaseUrl</code> defaults to <code>/api</code> (proxied by Vite).</p>
-
-    <h3>Security: Token Interceptor</h3>
-    <p>An Angular <code>HttpInterceptorFn</code> reads <code>window.assetManagementConfig.apiToken</code> and injects <code>x-api-token: &lt;token&gt;</code> on every outbound HTTP request. If the token is empty (local dev), the header is omitted.</p>
-
-    <h3>Key Components</h3>
-    <ul>
-      <li><strong><code>app.ts</code></strong> — Root component. Owns all signals: <code>recommendation</code>, <code>portfolios</code>, <code>marketEvent</code>, <code>submitting</code>, <code>chatMessages</code>. Manages the market stream SSE subscription, auto-generate logic, and approval actions.</li>
-      <li><strong><code>app.html</code></strong> — Two-panel dashboard. Left: Portfolio Monitor + Position &amp; Targets form. Right: Recommendation Review (situation → what changes → policy checks → AI market intelligence → decision bar → Q&amp;A chat) + Agent Status Strip.</li>
-      <li><strong><code>preferences/</code></strong> — 4-step wizard: Risk Profile → Allocation → Constraints → Review. Validates concentration limits against <code>max_single_position_pct</code> before allowing progression.</li>
-      <li><strong><code>intelligence/</code></strong> — Separate route <code>/intelligence</code>. Three tabs: Workflow Trace, Agent Memory, HITL Audit Trail.</li>
-      <li><strong><code>core/api/</code></strong> — Service layer: <code>RebalanceService</code>, <code>PortfolioService</code>, <code>PreferenceService</code>, <code>MarketStreamService</code>, <code>HealthService</code>.</li>
-    </ul>
-
-    <h3>Auto-Generate Logic</h3>
-    <p>The market stream fires every ~1.5 seconds. On each tick, <code>maybeAutoGenerateRecommendation()</code> runs:</p>
-    <ol>
-      <li>Skip if <code>submitting()</code> is true</li>
-      <li>Skip if signal is not <code>REBALANCE_NEEDED</code></li>
-      <li>If a <code>NO_ACTION_NEEDED</code> or <code>APPROVED</code> recommendation exists → clear it (stale)</li>
-      <li>If a <code>PENDING</code>, <code>REJECTED</code>, or <code>BLOCKED</code> recommendation exists → leave it alone</li>
-      <li>Submit once — <code>submitting()</code> guard prevents double-submission</li>
-    </ol>
-  </section>
-
-  <!-- ── Section 4: Backend Architecture ── -->
-  <section class="section-card" id="s4">
-    <h2><span class="section-num">4</span> Backend Architecture</h2>
-
-    <h3>FastAPI Application (<code>app/main.py</code>)</h3>
-    <ul>
-      <li>CORS middleware: all methods, all origins, <code>x-api-token</code> in allowed headers</li>
-      <li><strong>Token gate middleware</strong>: reads <code>API_TOKEN</code> env var. If set, validates <code>x-api-token</code> header on all requests except <code>/health</code> and OPTIONS. Returns 401 if missing or wrong. Disabled locally (no env var).</li>
-      <li>8 routers registered under <code>/api</code>: rebalance, approvals, portfolios, preferences, market, health, explain, intelligence</li>
-    </ul>
-
-    <h3>API Routes</h3>
-    <div class="table-wrap">
-      <table>
-        <thead><tr><th>Route</th><th>Method</th><th>Purpose</th></tr></thead>
-        <tbody>
-          <tr><td><code>GET /health</code></td><td>Public</td><td>Health check, no token required</td></tr>
-          <tr><td><code>POST /api/rebalance</code></td><td>Protected</td><td>Triggers full LangGraph workflow</td></tr>
-          <tr><td><code>POST /api/approvals/{id}/actions</code></td><td>Protected</td><td>APPROVE / REJECT / REQUEST_REVISION</td></tr>
-          <tr><td><code>GET /api/portfolios</code></td><td>Protected</td><td>List all portfolios</td></tr>
-          <tr><td><code>GET/PUT /api/preferences/{client_id}</code></td><td>Protected</td><td>Read/write client preferences</td></tr>
-          <tr><td><code>GET /api/market/stream</code></td><td>Protected</td><td>SSE market simulation stream</td></tr>
-          <tr><td><code>POST /api/recommendations/{id}/explain</code></td><td>Protected</td><td>Streaming LLM Q&amp;A about recommendation</td></tr>
-          <tr><td><code>POST /api/recommendations/{id}/simulate</code></td><td>Protected</td><td>What-if scenario simulation</td></tr>
-          <tr><td><code>GET /api/intelligence/workflow-trace/{account_id}</code></td><td>Protected</td><td>Agent workflow trace</td></tr>
-          <tr><td><code>GET /api/intelligence/memory/{client_id}</code></td><td>Protected</td><td>Client memory timeline</td></tr>
-          <tr><td><code>GET /api/intelligence/audit/{account_id}</code></td><td>Protected</td><td>HITL audit trail</td></tr>
-        </tbody>
-      </table>
-    </div>
-
-    <h3>Data Contracts (Pydantic v2)</h3>
-    <p>All models extend <code>ContractModel</code> (Pydantic <code>BaseModel</code> with <code>extra="forbid"</code>). All financial values use <code>Decimal</code>, never <code>float</code>.</p>
-
-    <p><strong>Key types:</strong></p>
-<pre><code class="language-python">class WorkflowState(StrEnum):
-    NORMAL = "NORMAL"       # All checks passed, trades ready
-    DEGRADED = "DEGRADED"   # Quality issues but usable
-    BLOCKED = "BLOCKED"     # Critical violation, no approval possible
-
-class PolicyVerdictStatus(StrEnum):
-    COMPLIANT = "COMPLIANT"
-    NON_COMPLIANT = "NON_COMPLIANT"
-    UNRESOLVED = "UNRESOLVED"
-
-class ApprovalAction(StrEnum):
-    APPROVE = "APPROVE"
-    REJECT = "REJECT"
-    REQUEST_REVISION = "REQUEST_REVISION"</code></pre>
-
-    <p><strong>Request/Response flow:</strong></p>
-<pre><code class="language-python">PortfolioRebalanceRequest
-  → correlation: CorrelationMetadata (request_id, session_id, trace_id)
-  → version: VersionMetadata (schema_version, policy_version, environment)
-  → actor: ActorContext
-  → client_profile: ClientProfile
-  → account_profile: AccountProfile
-  → portfolio_snapshot: PortfolioSnapshot (holdings + cash + total_value)
-  → allocation_target: AllocationTarget (asset_class_targets + tolerance_bands)
-  → risk_profile: RiskProfile (risk_level, max_single_position_pct, max_sector_pct)
-
-OrchestrationResponse
-  → workflow_state: WorkflowState
-  → recommendation_package: RecommendationPackage
-      → summary: str (includes sentiment context)
-      → agent_stages: list[AgentStageResult]
-      → current_allocation, target_allocation, proposed_allocation
-      → risk_policy: RiskPolicyResponse (verdict + drift + rule_results)
-      → proposal: ExecutionProposalResponse (trades + estimated_impact)
-      → sentiment_output: dict | None
-      → research_output: dict | None
-  → approval_artifact: ApprovalArtifact
-      → approval_id, recommendation_hash, approval_status
-  → research_output: dict | None
-  → sentiment_output: dict | None</code></pre>
-
-    <h3>Persistence Layer</h3>
-    <p>Two implementations behind a <code>WorkflowStore</code> Protocol:</p>
-    <ul>
-      <li><strong><code>InMemoryWorkflowStore</code></strong> — local dev, seeded with 2 demo portfolios on startup</li>
-      <li><strong><code>DynamoDBWorkflowStore</code></strong> — AWS, selected via <code>DYNAMODB_MODE=aws</code></li>
-    </ul>
-    <p>Both implement: <code>save_portfolio</code>, <code>get_portfolio</code>, <code>list_portfolios</code>, <code>save_approval</code>, <code>get_approval</code>, <code>list_approvals</code>, <code>update_approval</code>, <code>list_audit_events</code>, <code>add_audit_event</code>.</p>
-  </section>
-
-  <!-- ── Section 5: LangGraph Orchestration ── -->
-  <section class="section-card" id="s5">
-    <h2><span class="section-num">5</span> LangGraph Orchestration</h2>
-
-    <h3>Graph Structure</h3>
-    <p>The workflow is a directed acyclic graph compiled by <code>build_workflow_graph()</code> using LangGraph's <code>StateGraph</code> API. All state is carried in <code>WorkflowGraphState</code> (a <code>TypedDict</code>).</p>
-
-<pre class="ascii">START
-  └─→ validate_request
-        ├─[validation failed]─→ emit_workflow_audit_event → return_response → END
-        └─[passed]─→ initialize_context_and_trace
-                       └─→ log_request_audit_event
-                             ├─→ hydrate_memory ──────────┐  (parallel fan-out)
-                             └─→ run_research ────────────┘
-                                                           └─→ run_sentiment_analysis
-                                                                 └─→ run_portfolio_rebalancing
-                                                                       └─→ run_risk_policy
-                                                                             ├─[COMPLIANT]─→ generate_execution_proposal
-                                                                             └─[NON_COMPLIANT/UNRESOLVED]─→ assemble_recommendation (BLOCKED)
-                                                                                                    └─→ assemble_recommendation
-                                                                                                          └─→ apply_output_guardrails
-                                                                                                                ├─[NONE]─→ create_approval_artifact
-                                                                                                                │           └─→ persist_workflow_artifacts
-                                                                                                                └─[BLOCKED]─→ emit_workflow_audit_event
-                                                                                                                               └─→ return_response → END</pre>
-
-    <h3>Nodes</h3>
-    <div class="table-wrap">
-      <table>
-        <thead><tr><th>Node</th><th>Type</th><th>What it does</th></tr></thead>
-        <tbody>
-          <tr><td><code>validate_request</code></td><td>Sync</td><td>Validates allocation sum = 100%, holdings qty &gt; 0</td></tr>
-          <tr><td><code>initialize_context_and_trace</code></td><td>Sync</td><td>Assigns trace ID, generates CloudWatch trace URL</td></tr>
-          <tr><td><code>log_request_audit_event</code></td><td>Sync</td><td>Writes REQUEST_RECEIVED to audit log</td></tr>
-          <tr><td><code>hydrate_memory</code></td><td>Async</td><td>Memory Agent — retrieves client context, LLM synthesis if enabled</td></tr>
-          <tr><td><code>run_research</code></td><td>Async</td><td>Research Agent — calls A2A remote service, LLM market analysis</td></tr>
-          <tr><td><code>run_sentiment_analysis</code></td><td>Async</td><td>Sentiment Agent — calls MCP server per symbol, aggregates scores</td></tr>
-          <tr><td><code>run_portfolio_rebalancing</code></td><td>Async</td><td>Calculates drift deterministically (current vs target allocation)</td></tr>
-          <tr><td><code>run_risk_policy</code></td><td>Async</td><td>Evaluates concentration limits, returns COMPLIANT/NON_COMPLIANT/UNRESOLVED</td></tr>
-          <tr><td><code>generate_execution_proposal</code></td><td>Async</td><td>Calculates BUY/SELL trades from drift, LLM-enhanced rationale</td></tr>
-          <tr><td><code>assemble_recommendation</code></td><td>Async</td><td>Merges all outputs, sets workflow_state, injects sentiment context into summary</td></tr>
-          <tr><td><code>apply_output_guardrails</code></td><td>Async</td><td>Content safety check (keyword-based stub, Bedrock Guardrails in future)</td></tr>
-          <tr><td><code>create_approval_artifact</code></td><td>Async</td><td>Creates ApprovalArtifact with recommendation hash</td></tr>
-          <tr><td><code>persist_workflow_artifacts</code></td><td>Async</td><td>Writes to DynamoDB</td></tr>
-          <tr><td><code>emit_workflow_audit_event</code></td><td>Async</td><td>Writes WORKFLOW_COMPLETED to audit log</td></tr>
-          <tr><td><code>return_response</code></td><td>Async</td><td>Terminal node — state ready for serialization</td></tr>
-        </tbody>
-      </table>
-    </div>
-
-    <h3>Conditional Routing</h3>
-    <p><strong>After <code>validate_request</code>:</strong></p>
-    <ul>
-      <li><code>validation_error</code> set → skip to <code>emit_workflow_audit_event</code></li>
-      <li>No error → proceed to <code>initialize_context_and_trace</code></li>
-    </ul>
-    <p><strong>After <code>run_risk_policy</code>:</strong></p>
-    <ul>
-      <li><code>COMPLIANT</code> → <code>generate_execution_proposal</code></li>
-      <li><code>NON_COMPLIANT</code> or <code>UNRESOLVED</code> → set <code>workflow_state = BLOCKED</code>, skip to <code>assemble_recommendation</code></li>
-    </ul>
-    <p><strong>After <code>apply_output_guardrails</code>:</strong></p>
-    <ul>
-      <li><code>action = NONE</code> → <code>create_approval_artifact</code></li>
-      <li><code>action = BLOCKED</code> → set <code>workflow_state = BLOCKED</code>, skip to <code>emit_workflow_audit_event</code></li>
-    </ul>
-
-    <h3>WorkflowGraphState</h3>
-    <p>The shared state object passed through every node:</p>
-<pre><code class="language-python">class WorkflowGraphState(TypedDict, total=False):
-    request_id: str
-    session_id: str
-    trace_id: str
-    request: PortfolioRebalanceRequest
-    validation_error: Optional[dict]
-    memory_output: Optional[dict]
-    research_output: Optional[dict]
-    sentiment_output: Optional[dict]
-    rebalancing_output: Optional[dict]
-    risk_policy_output: Optional[RiskPolicyResponse]
-    trade_proposal_output: Optional[dict]
-    guardrail_result: Optional[dict]
-    approval_artifact: Optional[ApprovalArtifact]
-    agent_stages: list[AgentStageResult]
-    confidence_map: dict[str, float]
-    degraded_reasons: list[str]
-    blockers: list[str]
-    recommendation_package: Optional[RecommendationPackage]
-    workflow_state: WorkflowState
-    audit_event_ids: list[str]</code></pre>
-  </section>
-
-  <!-- ── Section 6: Agent Implementations ── -->
-  <section class="section-card" id="s6">
-    <h2><span class="section-num">6</span> Agent Implementations</h2>
-
-    <div class="agent-grid">
-      <!-- Memory Agent -->
-      <div class="agent-card local">
-        <div class="agent-card-header">
-          <div class="agent-card-title">Memory / Personalization Agent</div>
-          <span class="agent-type-badge badge-local">LOCAL</span>
-        </div>
-        <p>Retrieves client memory items from <code>LocalMemoryAdapter</code>. If <code>FEATURE_MEMORY_AGENT_LLM_ENABLED</code>: generates semantic query, synthesizes memories into coherent context, detects conflicts. Falls back to raw memory retrieval if LLM fails.</p>
-        <div class="model-tag">us.anthropic.claude-3-5-haiku-20241022-v1:0</div>
-      </div>
-
-      <!-- Research Agent -->
-      <div class="agent-card a2a">
-        <div class="agent-card-header">
-          <div class="agent-card-title">Research Agent</div>
-          <span class="agent-type-badge badge-a2a">A2A REMOTE</span>
-        </div>
-        <p>Backend calls <code>POST {RESEARCH_AGENT_URL}/a2a/research</code> with portfolio context. Receives <code>A2AResearchRequest</code> with symbols and portfolio snapshot. If LLM enabled: calls Bedrock for market regime, key risks, actionable insights. Returns: <code>market_context</code>, <code>key_insights</code>, <code>regime</code> (BULL/BEAR/NEUTRAL/VOLATILE), <code>confidence</code>.</p>
-        <div class="model-tag">us.anthropic.claude-sonnet-4-5-20250929-v1:0</div>
-      </div>
-
-      <!-- Sentiment Agent -->
-      <div class="agent-card mcp">
-        <div class="agent-card-header">
-          <div class="agent-card-title">Sentiment Analysis Agent</div>
-          <span class="agent-type-badge badge-mcp">MCP TOOL SERVER</span>
-        </div>
-        <p>Backend calls <code>POST {SENTIMENT_MCP_URL}/mcp</code> with JSON-RPC 2.0 envelope. Method: <code>analyze_symbol_news_sentiment</code>. Returns per-symbol: <code>overall_sentiment</code>, <code>sentiment_score</code> (-1.0 to 1.0), <code>summary</code>, <code>confidence</code>. Aggregated: <code>overall_sentiment</code>, <code>average_sentiment_score</code>, <code>symbol_sentiments</code>.</p>
-        <div class="model-tag">us.anthropic.claude-3-5-haiku-20241022-v1:0</div>
-      </div>
-
-      <!-- Portfolio Rebalancing Agent -->
-      <div class="agent-card determ">
-        <div class="agent-card-header">
-          <div class="agent-card-title">Portfolio Rebalancing Agent</div>
-          <span class="agent-type-badge badge-determ">LOCAL · DETERMINISTIC</span>
-        </div>
-        <p>Calculates <code>current_allocation</code> from holdings market values. Calculates <code>drift</code> per asset class: <code>current_pct - target_pct</code>. Flags items where <code>abs(drift_pct) &gt; tolerance_pct</code> as <code>within_tolerance = False</code>. No LLM enhancement currently (placeholder).</p>
-      </div>
-
-      <!-- Risk & Compliance Agent -->
-      <div class="agent-card determ">
-        <div class="agent-card-header">
-          <div class="agent-card-title">Risk &amp; Compliance Agent</div>
-          <span class="agent-type-badge badge-determ">LOCAL · DETERMINISTIC</span>
-        </div>
-        <p><strong>Concentration check:</strong> largest position &gt; <code>max_single_position_pct</code> → <code>NON_COMPLIANT</code>. <strong>Missing risk profile</strong> → <code>UNRESOLVED</code>. <strong>All checks pass</strong> → <code>COMPLIANT</code>. Returns <code>RiskPolicyResponse</code> with verdict, drift items, rule results, confidence.</p>
-      </div>
-
-      <!-- Trade Execution Proposal Agent -->
-      <div class="agent-card local">
-        <div class="agent-card-header">
-          <div class="agent-card-title">Trade Execution Proposal Agent</div>
-          <span class="agent-type-badge badge-local">LOCAL · DETERMINISTIC + LLM</span>
-        </div>
-        <p>For each drift item where <code>not within_tolerance</code>: <code>trade_value = abs(drift_pct / 100 * total_portfolio_value)</code>, <code>action = SELL if drift_pct &gt; 0 else BUY</code>. Creates <code>TradeProposal</code> with trade_id, symbol, action, estimated_value, rationale. If LLM enabled: enhances rationale with Bedrock.</p>
-        <div class="model-tag">us.anthropic.claude-sonnet-4-5-20250929-v1:0</div>
-      </div>
-    </div>
-
-    <h3>Sentiment → Summary Integration</h3>
-    <p>After all agents run, <code>assemble_recommendation</code> calls <code>_sentiment_notes()</code> which:</p>
-    <ul>
-      <li>Maps symbol → sentiment from <code>sentiment_output.symbol_sentiments</code></li>
-      <li>For each proposed trade: if SELL + POSITIVE sentiment → "driven by drift, not weakness"; if BUY + NEGATIVE → "consider timing"; if BUY + POSITIVE → "sentiment supports this buy"</li>
-      <li>Appends the note to the recommendation summary</li>
-    </ul>
-  </section>
-
-  <!-- ── Section 7: Human-in-the-Loop ── -->
-  <section class="section-card" id="s7">
-    <h2><span class="section-num">7</span> Human-in-the-Loop Workflow</h2>
-
-    <h3>Approval Artifact</h3>
-    <p>Created by <code>create_approval_artifact</code> node. Contains:</p>
-    <ul>
-      <li><code>approval_id</code> — unique identifier</li>
-      <li><code>recommendation_hash</code> — SHA-256 of recommendation content (stale artifact protection)</li>
-      <li><code>recommendation</code> — full <code>RecommendationPackage</code></li>
-      <li><code>original_portfolio_snapshot</code> — snapshot at time of recommendation</li>
-      <li><code>approval_status</code> — <code>PENDING | APPROVED | REJECTED | REVISION_REQUESTED</code></li>
-    </ul>
-
-    <h3>Approval Actions (<code>POST /api/approvals/{id}/actions</code>)</h3>
-<pre><code class="language-python">ApprovalActionRequest:
-  action: APPROVE | REJECT | REQUEST_REVISION
-  actor_id: str
-  note: str | None  # required for REJECT and REQUEST_REVISION
-  expected_recommendation_hash: str  # must match artifact hash</code></pre>
-
-    <p><strong>Business rules:</strong></p>
-    <ul>
-      <li><code>APPROVE</code> is forbidden when <code>workflow_state == BLOCKED</code> → 409</li>
-      <li><code>REJECT</code> and <code>REQUEST_REVISION</code> require a <code>note</code> → 422</li>
-      <li>Hash mismatch → transition rejected, stale artifact logged</li>
-    </ul>
-
-    <p><strong>On APPROVE:</strong></p>
-    <ol>
-      <li><code>approval_status</code> → <code>APPROVED</code></li>
-      <li>New <code>PortfolioRecord</code> created from <code>proposed_allocation</code></li>
-      <li>Portfolio saved to DynamoDB</li>
-      <li><code>PORTFOLIO_UPDATED_FROM_APPROVAL</code> audit event written</li>
-    </ol>
-
-    <h3>Audit Trail</h3>
-    <p>Every significant action writes an <code>AuditEvent</code> to DynamoDB:</p>
-    <div class="table-wrap">
-      <table>
-        <thead><tr><th>Event</th><th>Trigger</th></tr></thead>
-        <tbody>
-          <tr><td><code>REQUEST_RECEIVED</code></td><td>On workflow start</td></tr>
-          <tr><td><code>WORKFLOW_COMPLETED</code></td><td>On workflow end</td></tr>
-          <tr><td><code>APPROVAL_ACTION</code></td><td>On every approve/reject</td></tr>
-          <tr><td><code>APPROVAL_ACTION_REJECTED</code></td><td>On hash mismatch</td></tr>
-          <tr><td><code>PORTFOLIO_UPDATED_FROM_APPROVAL</code></td><td>On successful approval</td></tr>
-        </tbody>
-      </table>
-    </div>
-  </section>
-
-  <!-- ── Section 8: Conversational AI ── -->
-  <section class="section-card" id="s8">
-    <h2><span class="section-num">8</span> Conversational AI (Q&amp;A Chat)</h2>
-
-    <h3>Endpoint: <code>POST /api/recommendations/{approval_id}/explain</code></h3>
-    <p>Streams an LLM explanation of the recommendation in response to a natural language question.</p>
-
-    <h3>Context Built from Approval Artifact</h3>
-    <ul>
-      <li>Portfolio ID, workflow state, policy verdict, summary</li>
-      <li>Current and target allocation</li>
-      <li>Proposed trades with rationale</li>
-      <li>Policy rule results (PASS/FAIL)</li>
-      <li>Risk profile (risk level, concentration limits)</li>
-      <li>Sentiment output (per-symbol scores and labels)</li>
-      <li>Research output (market regime, key insights)</li>
-    </ul>
-
-    <h3>Streaming</h3>
-    <p>FastAPI <code>StreamingResponse</code> with SSE. Each token yields:</p>
-<pre><code class="language-json">data: {"type": "token", "content": "..."}</code></pre>
-    <p>Final event:</p>
-<pre><code class="language-json">data: {"type": "done"}</code></pre>
-
-    <h3>System Prompt</h3>
-    <p>Instructs the LLM to answer only from the provided context — no hallucinated market data. Explicitly told it has sentiment and research data and should use it when asked.</p>
-
-    <h3>Frontend</h3>
-    <p>Angular <code>fetch()</code> with <code>ReadableStream</code>. Tokens stream into the last assistant message character by character. Thinking indicator (bouncing dots) shown before first token arrives.</p>
-  </section>
-
-  <!-- ── Section 9: AWS Infrastructure ── -->
-  <section class="section-card" id="s9">
-    <h2><span class="section-num">9</span> AWS Infrastructure</h2>
-
-    <h3>Resources (Terraform-managed)</h3>
-    <div class="table-wrap">
-      <table>
-        <thead><tr><th>Resource</th><th>Name</th><th>Region</th></tr></thead>
-        <tbody>
-          <tr><td>API Gateway v2</td><td><code>asset-management-dev-api</code></td><td>us-east-1</td></tr>
-          <tr><td>Backend Lambda</td><td><code>asset-management-dev-backend</code></td><td>us-east-1</td></tr>
-          <tr><td>Research Agent Lambda</td><td><code>asset-management-dev-research-agent</code></td><td>us-east-1</td></tr>
-          <tr><td>Sentiment MCP Lambda</td><td><code>asset-management-dev-sentiment-mcp</code></td><td>us-east-1</td></tr>
-          <tr><td>DynamoDB: approvals</td><td><code>asset-management-dev-approvals</code></td><td>us-east-1</td></tr>
-          <tr><td>DynamoDB: audit-events</td><td><code>asset-management-dev-audit-events</code></td><td>us-east-1</td></tr>
-          <tr><td>DynamoDB: portfolios</td><td><code>asset-management-dev-portfolios</code></td><td>us-east-1</td></tr>
-          <tr><td>DynamoDB: sessions</td><td><code>asset-management-dev-sessions</code></td><td>us-east-1</td></tr>
-          <tr><td>DynamoDB: memory-queue</td><td><code>asset-management-dev-memory-queue</code></td><td>us-east-1</td></tr>
-          <tr><td>DynamoDB: preferences</td><td><code>asset-management-dev-preferences</code></td><td>us-east-1</td></tr>
-          <tr><td>S3 Frontend Bucket</td><td><code>asset-management-dev-frontend-855603407942</code></td><td>us-east-2</td></tr>
-        </tbody>
-      </table>
-    </div>
-
-    <h3>IAM Permissions</h3>
-    <ul>
-      <li><strong>Backend Lambda</strong>: DynamoDB (GetItem, PutItem, UpdateItem, Scan, Query on all 6 tables) + Bedrock (InvokeModel, InvokeModelWithResponseStream on <code>*</code>)</li>
-      <li><strong>Research Agent Lambda</strong>: Bedrock only (InvokeModel, InvokeModelWithResponseStream on <code>*</code>)</li>
-      <li><strong>Sentiment MCP Lambda</strong>: Bedrock only (InvokeModel, InvokeModelWithResponseStream on <code>*</code>)</li>
-    </ul>
-
-    <h3>Lambda Configuration</h3>
-    <p>All Lambdas use Mangum as the ASGI adapter to handle API Gateway events. Handler: <code>app.lambda_handler.handler</code>.</p>
-    <p>Backend Lambda environment variables (key ones):</p>
-<pre><code class="language-bash">DYNAMODB_MODE=aws
-RESEARCH_AGENT_URL={api_endpoint}/a2a/research
-SENTIMENT_MCP_URL={api_endpoint}/mcp
-MARKET_STREAM_MAX_EVENTS=20
-SEED_DEFAULT_PORTFOLIOS=true
-FEATURE_*_LLM_ENABLED=true (all 6 agents)
-FEATURE_FALLBACK_ON_LLM_FAILURE=true
-API_TOKEN=&lt;secret&gt;</code></pre>
-
-    <h3>Bedrock Models</h3>
-    <p>All models use cross-region inference profiles (required for on-demand throughput):</p>
-    <div class="table-wrap">
-      <table>
-        <thead><tr><th>Agent</th><th>Model ID</th></tr></thead>
-        <tbody>
-          <tr><td>Memory, Sentiment</td><td><code>us.anthropic.claude-3-5-haiku-20241022-v1:0</code></td></tr>
-          <tr><td>Research, Risk, Trade Proposal, Rebalancing</td><td><code>us.anthropic.claude-sonnet-4-5-20250929-v1:0</code></td></tr>
-        </tbody>
-      </table>
-    </div>
-    <div class="info-box">
-      <strong>Note:</strong> Direct model IDs (without <code>us.</code> prefix) are not supported for on-demand invocation — they require provisioned throughput.
-    </div>
-
-    <h3>Security</h3>
-    <p><strong>Token gate (FastAPI middleware):</strong></p>
-    <ul>
-      <li>Reads <code>API_TOKEN</code> env var</li>
-      <li>All <code>/api/*</code> routes require <code>x-api-token: &lt;token&gt;</code> header</li>
-      <li><code>/health</code> and OPTIONS preflight are exempt</li>
-      <li>Returns 401 if token missing or wrong</li>
-      <li>Disabled locally (no env var set)</li>
-    </ul>
-    <p><strong>API Gateway throttling:</strong></p>
-    <ul>
-      <li>Burst limit: 20 concurrent requests</li>
-      <li>Rate limit: 10 requests/second sustained</li>
-      <li>Returns 429 when exceeded</li>
-    </ul>
-    <p><strong>Frontend token injection:</strong></p>
-    <ul>
-      <li>Angular <code>HttpInterceptorFn</code> reads token from <code>window.assetManagementConfig.apiToken</code></li>
-      <li>Token baked into <code>app-config.js</code> at S3 deploy time</li>
-      <li>Empty token in local dev → interceptor skips header</li>
-    </ul>
-  </section>
-
-  <!-- ── Section 10: Local Development ── -->
-  <section class="section-card" id="s10">
-    <h2><span class="section-num">10</span> Local Development</h2>
-
-    <h3>Docker Compose Services</h3>
-    <div class="table-wrap">
-      <table>
-        <thead><tr><th>Service</th><th>Port</th><th>Notes</th></tr></thead>
-        <tbody>
-          <tr><td><strong>Backend</strong></td><td>8000</td><td>FastAPI + LangGraph, all LLMs enabled</td></tr>
-          <tr><td><strong>Research Agent</strong></td><td>8101</td><td>A2A, Bedrock via <code>~/.aws</code> mount</td></tr>
-          <tr><td><strong>Sentiment MCP</strong></td><td>8201</td><td>MCP, Bedrock via <code>~/.aws</code> mount</td></tr>
-          <tr><td><strong>DynamoDB Local</strong></td><td>55000</td><td>In-memory, no token required</td></tr>
-        </tbody>
-      </table>
-    </div>
-    <p>AWS credentials are mounted read-only: <code>~/.aws:/root/.aws:ro</code>. Region: <code>us-east-2</code>.</p>
-
-    <h3>Frontend Dev Server</h3>
-<pre><code class="language-bash">cd frontend &amp;&amp; npm start  # http://localhost:4200</code></pre>
-    <p>Vite proxies <code>/api/*</code> → <code>http://localhost:8000</code>. No token needed locally.</p>
-
-    <h3>Feature Flags</h3>
-    <p>All LLM features are enabled by default in <code>docker-compose.yml</code>. To disable:</p>
-<pre><code class="language-yaml">FEATURE_MEMORY_AGENT_LLM_ENABLED=false</code></pre>
-  </section>
-
-  <!-- ── Section 11: Deployment ── -->
-  <section class="section-card" id="s11">
-    <h2><span class="section-num">11</span> Deployment</h2>
-
-    <h3>Package and Deploy</h3>
-<pre><code class="language-bash"># 1. Package Lambda zips (uses Docker SAM image)
-./infra/scripts/package_lambda.sh
-
-# 2. Deploy infrastructure
-cd infra/terraform/environments/dev
-terraform apply -auto-approve -var-file=dev.tfvars
-
-# 3. Deploy frontend with token
-./infra/scripts/publish_frontend.sh \
-  "https://r62c0mmp4i.execute-api.us-east-1.amazonaws.com" \
-  "asset-management-dev-frontend-855603407942" \
-  "&lt;api_token&gt;"</code></pre>
-
-    <p>The <code>publish_frontend.sh</code> script builds Angular, writes <code>app-config.js</code> with the API URL and token, then syncs to S3.</p>
-
-    <h3>Live URLs</h3>
-    <div class="info-box">
-      <div class="kv-list">
-        <span class="kv-key">Frontend</span>
-        <span class="kv-val"><code>http://asset-management-dev-frontend-855603407942.s3-website.us-east-2.amazonaws.com</code></span>
-        <span class="kv-key">API</span>
-        <span class="kv-val"><code>https://r62c0mmp4i.execute-api.us-east-1.amazonaws.com</code></span>
-      </div>
-    </div>
-  </section>
-
-  <!-- ── Section 12: Key Design Decisions ── -->
-  <section class="section-card" id="s12">
-    <h2><span class="section-num">12</span> Key Design Decisions</h2>
-
-    <h3>Why LangGraph instead of Bedrock native supervisor?</h3>
-    <p>LangGraph gives explicit control over the state machine — conditional routing, parallel fan-out, and the human-in-the-loop node are all first-class graph constructs. Bedrock native supervisor mode abstracts these away, making it harder to enforce the "no autonomous execution" constraint.</p>
-
-    <h3>Why A2A for Research, MCP for Sentiment?</h3>
-    <p>These protocols demonstrate different integration patterns:</p>
-    <ul>
-      <li><strong>A2A</strong> (Agent-to-Agent): The Research Agent is a standalone service that receives a structured task envelope and returns a structured response. It can be deployed independently and scaled separately.</li>
-      <li><strong>MCP</strong> (Model Context Protocol): The Sentiment Agent exposes a JSON-RPC 2.0 tool interface. Any MCP-compatible client can call it, making it reusable across different orchestrators.</li>
-    </ul>
-
-    <h3>Why deterministic-first for policy evaluation?</h3>
-    <p>The concentration check and drift calculation are always deterministic. LLMs enhance the explanation and rationale but never override the deterministic verdict. This ensures the system is auditable and the policy outcome is reproducible.</p>
-
-    <h3>Why <code>Decimal</code> instead of <code>float</code> for financial values?</h3>
-    <p>Floating-point arithmetic introduces rounding errors that compound in financial calculations. <code>Decimal</code> provides exact decimal arithmetic. All Pydantic models enforce this via type annotations.</p>
-
-    <h3>Why recommendation hash verification?</h3>
-    <p>The <code>expected_recommendation_hash</code> in approval actions prevents approving a stale artifact. If the recommendation changes between when the user sees it and when they click Approve, the hash won't match and the action is rejected. This is a critical safety control.</p>
-
-    <h3>Why feature flags per agent?</h3>
-    <p>Each LLM integration can be toggled independently without code changes. This allows gradual rollout, cost control, and safe fallback to deterministic logic if a model is unavailable or produces poor results.</p>
-  </section>
-
-</main>
-
-<!-- Back to top button -->
-<button id="back-to-top" aria-label="Back to top" title="Back to top">&#8679;</button>
-
-<script>
-  // highlight.js init
-  document.addEventListener('DOMContentLoaded', () => {
-    document.querySelectorAll('pre code').forEach(block => {
-      hljs.highlightElement(block);
-    });
-  });
-
-  // Back to top visibility
-  const btn = document.getElementById('back-to-top');
-  window.addEventListener('scroll', () => {
-    btn.classList.toggle('visible', window.scrollY > 400);
-  });
-  btn.addEventListener('click', () => window.scrollTo({ top: 0, behavior: 'smooth' }));
-
-  // Mobile sidebar toggle
-  const sidebar = document.getElementById('sidebar');
-  const overlay = document.getElementById('sidebarOverlay');
-  const menuToggle = document.getElementById('menuToggle');
-
-  menuToggle.addEventListener('click', () => {
-    sidebar.classList.toggle('open');
-    overlay.classList.toggle('open');
-  });
-  overlay.addEventListener('click', () => {
-    sidebar.classList.remove('open');
-    overlay.classList.remove('open');
-  });
-
-  // Close sidebar on nav link click (mobile)
-  sidebar.querySelectorAll('.nav-item').forEach(link => {
-    link.addEventListener('click', () => {
-      if (window.innerWidth <= 900) {
-        sidebar.classList.remove('open');
-        overlay.classList.remove('open');
+  <script>
+    (function() {
+      const slides = Array.from(document.querySelectorAll('.slide'));
+      const progressBar = document.getElementById('progress-bar');
+      const curNum = document.getElementById('current-slide-num');
+      const totalNum = document.getElementById('total-slides-num');
+      const topicBadge = document.getElementById('slide-topic-badge');
+      const overviewModal = document.getElementById('overview-modal');
+      const overviewGrid = document.getElementById('overview-grid');
+      
+      let currentIndex = 0;
+      const totalSlides = slides.length;
+      totalNum.textContent = String(totalSlides).padStart(2, '0');
+
+      // Populate Overview Grid
+      slides.forEach((slide, idx) => {
+        const titleEl = slide.querySelector('.slide-title, .title-headline');
+        const topic = slide.getAttribute('data-topic') || `Slide ${idx + 1}`;
+        const title = titleEl ? titleEl.textContent.trim() : topic;
+        
+        const card = document.createElement('div');
+        card.className = 'thumb-card' + (idx === 0 ? ' active' : '');
+        card.innerHTML = `
+          <div class="thumb-num">SLIDE ${String(idx + 1).padStart(2, '0')} · ${topic}</div>
+          <div class="thumb-title">${title}</div>
+        `;
+        card.addEventListener('click', () => {
+          goToSlide(idx);
+          toggleOverview(false);
+        });
+        overviewGrid.appendChild(card);
+      });
+
+      function updateSlide(newIndex) {
+        if (newIndex < 0 || newIndex >= totalSlides) return;
+        
+        slides[currentIndex].classList.remove('active');
+        currentIndex = newIndex;
+        slides[currentIndex].classList.add('active');
+
+        // Progress bar
+        const pct = ((currentIndex + 1) / totalSlides) * 100;
+        progressBar.style.width = pct + '%';
+
+        // Counter
+        curNum.textContent = String(currentIndex + 1).padStart(2, '0');
+
+        // Topic Badge
+        const topic = slides[currentIndex].getAttribute('data-topic') || 'Architecture';
+        topicBadge.textContent = topic;
+
+        // Update Overview Thumbnails active class
+        const thumbCards = overviewGrid.querySelectorAll('.thumb-card');
+        thumbCards.forEach((tc, i) => {
+          tc.classList.toggle('active', i === currentIndex);
+        });
+
+        // Scroll slide content to top
+        slides[currentIndex].scrollTop = 0;
       }
-    });
-  });
 
-  // Active nav highlight on scroll
-  const sections = document.querySelectorAll('section[id]');
-  const navItems = document.querySelectorAll('.nav-item');
-
-  const observer = new IntersectionObserver(entries => {
-    entries.forEach(entry => {
-      if (entry.isIntersecting) {
-        navItems.forEach(item => item.classList.remove('active'));
-        const active = document.querySelector(`.nav-item[href="#${entry.target.id}"]`);
-        if (active) active.classList.add('active');
+      function nextSlide() {
+        if (currentIndex < totalSlides - 1) updateSlide(currentIndex + 1);
       }
-    });
-  }, { rootMargin: '-20% 0px -70% 0px' });
 
-  sections.forEach(s => observer.observe(s));
-</script>
+      function prevSlide() {
+        if (currentIndex > 0) updateSlide(currentIndex - 1);
+      }
+
+      function goToSlide(idx) {
+        updateSlide(idx);
+      }
+
+      function toggleOverview(force) {
+        const isOpen = overviewModal.classList.contains('open');
+        const shouldOpen = force !== undefined ? force : !isOpen;
+        overviewModal.classList.toggle('open', shouldOpen);
+      }
+
+      function toggleFullscreen() {
+        if (!document.fullscreenElement) {
+          document.documentElement.requestFullscreen().catch(() => {});
+        } else {
+          document.exitFullscreen().catch(() => {});
+        }
+      }
+
+      // Tab switcher inside slides
+      window.switchTab = function(e, tabId) {
+        const container = e.target.closest('.slide');
+        if (!container) return;
+        container.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+        container.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+        e.target.classList.add('active');
+        const target = container.querySelector('#' + tabId);
+        if (target) target.classList.add('active');
+      };
+
+      // Button listeners
+      document.getElementById('btn-next').addEventListener('click', nextSlide);
+      document.getElementById('btn-prev').addEventListener('click', prevSlide);
+      document.getElementById('btn-grid').addEventListener('click', () => toggleOverview());
+      document.getElementById('btn-toggle-grid').addEventListener('click', () => toggleOverview());
+      document.getElementById('btn-close-overview').addEventListener('click', () => toggleOverview(false));
+      document.getElementById('btn-fullscreen').addEventListener('click', toggleFullscreen);
+
+      // Keyboard navigation
+      window.addEventListener('keydown', (e) => {
+        if (overviewModal.classList.contains('open')) {
+          if (e.key === 'Escape' || e.key === 'o' || e.key === 'O') {
+            toggleOverview(false);
+          }
+          return;
+        }
+
+        switch(e.key) {
+          case 'ArrowRight':
+          case 'PageDown':
+          case ' ':
+            e.preventDefault();
+            nextSlide();
+            break;
+          case 'ArrowLeft':
+          case 'PageUp':
+            e.preventDefault();
+            prevSlide();
+            break;
+          case 'Home':
+            e.preventDefault();
+            goToSlide(0);
+            break;
+          case 'End':
+            e.preventDefault();
+            goToSlide(totalSlides - 1);
+            break;
+          case 'o':
+          case 'O':
+            e.preventDefault();
+            toggleOverview();
+            break;
+          case 'f':
+          case 'F':
+            e.preventDefault();
+            toggleFullscreen();
+            break;
+        }
+      });
+
+      // Swipe gesture support for tablets/touch
+      let touchStartX = 0;
+      window.addEventListener('touchstart', e => {
+        touchStartX = e.changedTouches[0].screenX;
+      }, { passive: true });
+      window.addEventListener('touchend', e => {
+        const touchEndX = e.changedTouches[0].screenX;
+        const diff = touchEndX - touchStartX;
+        if (Math.abs(diff) > 50) {
+          if (diff < 0) nextSlide();
+          else prevSlide();
+        }
+      }, { passive: true });
+
+      // Init
+      updateSlide(0);
+    })();
+  </script>
 </body>
 </html>
