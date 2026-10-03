@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "asset-management-backend"
 version = "0.1.0"
 description = "FastAPI backend for the personal portfolio multi-agent platform"
-requires-python = ">=3.12"
+requires-python = ">=3.14"
 dependencies = [
   "boto3",
   "fastapi",
@@ -39,7 +39,7 @@ pythonpath = ["."]
 
 [tool.ruff]
 line-length = 100
-target-version = "py313"
+target-version = "py314"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]

@@ -8,7 +8,7 @@ An AI-powered portfolio rebalancing decision-support platform. It monitors a sim
 
 **Key technologies:**
 - **Frontend:** Angular 19, TypeScript, Angular Signals, SCSS
-- **Backend:** Python 3.12, FastAPI, LangGraph, Pydantic v2
+- **Backend:** Python 3.14, FastAPI, LangGraph, Pydantic v2
 - **AI:** AWS Bedrock (Claude models via cross-region inference profiles)
 - **Agent protocols:** A2A (Agent-to-Agent) for Research, MCP (Model Context Protocol) for Sentiment
 - **Persistence:** DynamoDB (AWS hosted in prod, DynamoDB Local in dev)

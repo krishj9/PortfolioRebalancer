@@ -19,7 +19,7 @@ An **AI-powered portfolio rebalancing decision-support platform** for a personal
 | Layer | Technology |
 |---|---|
 | Frontend | Angular 19, TypeScript, SCSS, Angular Signals |
-| Backend | Python 3.12+, FastAPI, Pydantic v2, LangGraph |
+| Backend | Python 3.14+, FastAPI, Pydantic v2, LangGraph |
 | AI Orchestration | LangGraph (state machine), AWS Bedrock (Claude models) |
 | Remote Agents | A2A protocol (Research Agent), MCP protocol (Sentiment Agent) |
 | Persistence | DynamoDB (AWS hosted in prod, DynamoDB Local in dev) |

@@ -7,7 +7,7 @@ The system monitors allocation drift, runs a LangGraph multi-agent workflow, and
 ## Project at a glance
 
 - **Frontend:** Angular 19 SPA (signals-based UI)
-- **Backend:** FastAPI + LangGraph (Python 3.12+)
+- **Backend:** FastAPI + LangGraph (Python 3.14+)
 - **AI layer:** Amazon Bedrock Claude models with feature-flagged LLM agent behavior
 - **Remote agent protocols:** A2A (research), MCP (sentiment)
 - **Data:** DynamoDB in AWS, DynamoDB Local in local development

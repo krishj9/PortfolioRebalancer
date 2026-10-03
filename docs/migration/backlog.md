@@ -1,0 +1,276 @@
+# POC Migration Backlog
+
+Each task is sized for one coding-agent session. Effort: S ≤ 0.5 d, M ≈ 1 d, L ≈ 2 d.
+Paths are relative to the repo root. "New" means the file doesn't exist yet.
+
+---
+
+## Phase 0: Inspect and validate
+
+### P0-01 Run the existing test suite
+- **Goal:** Establish a baseline.
+- **Files:** none (if a fix is needed, `backend/pyproject.toml` only)
+- **Scope:** Create a Python 3.14 venv, `pip install -e 'backend[dev]'`, run `DYNAMODB_MODE=memory pytest backend/tests`. Record pass/fail in the PR description.
+- **Deps:** none · **Accept:** results recorded; any failures triaged as pre-existing.
+- **Test:** existing suite · **Effort:** S
+
+### P0-02 Characterize LangGraph vs Orchestrator output
+- **Goal:** Prove the graph can replace `Orchestrator` for the demo.
+- **Files:** new `backend/tests/test_graph_parity.py`
+- **Scope:** Invoke `build_workflow_graph().ainvoke(create_initial_state(req))` with the `test_rebalance.py` payload. Expect it to fail at D1. Write the test as `xfail` documenting the defect.
+- **Deps:** P0-01 · **Accept:** failure points documented (D1/D2 confirmed or refuted).
+- **Test:** this test · **Effort:** S
+
+### P0-03 Spike: custom-template LangGraph on Agent Runtime
+- **Goal:** Confirm we can deploy an existing `StateGraph` with the custom template.
+- **Files:** new `spikes/agent_runtime_hello/` (deleted after Phase 1)
+- **Scope:** Write a class with `set_up()` that compiles a two-node `StateGraph` and `query()` that calls `ainvoke`/`invoke`. Deploy with the Agent Platform SDK, then query it. Record the SDK version and the deploy call actually used.
+- **Deps:** project/APIs · **Accept:** a remote `query()` returns the graph output.
+- **Test:** manual script · **Effort:** M
+
+### P0-04 Spike: Sessions + Memory Bank via API, and region choice
+- **Goal:** Verify the non-ADK API flow and regional availability.
+- **Files:** `spikes/context_api/`
+- **Scope:** Create a session, append 2 events, generate memories from the session with scope `{"user_id":"demo"}`, retrieve them, and delete one. Record the exact SDK method names. Check that the chosen region supports Runtime, Sessions, Memory Bank, and Agent Gateway.
+- **Deps:** P0-03 · **Accept:** method names and region recorded in `architecture.md` §7. UNVERIFIED tags updated.
+- **Test:** script · **Effort:** M
+
+### P0-05 Spike: Agent Gateway tool registration for Cloud Run
+- **Goal:** Find out whether a plain HTTPS Cloud Run endpoint can be governed, or whether MCP is required. Also find the agent-identity principal to use for `run.invoker`.
+- **Files:** `spikes/gateway/` (notes only)
+- **Scope:** Read the Gateway limitations for Runtime. Try registering a hello Cloud Run service in Agent Registry and calling it through an egress gateway.
+- **Deps:** P0-03 · **Accept:** decision recorded (HTTP vs MCP facade). Supported Terraform vs scripted steps listed.
+- **Test:** manual · **Effort:** M
+
+### P0-06 Spike: trace propagation into Agent Runtime
+- **Goal:** Confirm that `traceparent` survives the hop from the Cloud Run API through `query()` to a tool call.
+- **Files:** `spikes/otel/`
+- **Scope:** Enable Runtime tracing per docs. Pass `traceparent` in the payload and start a child span in `query()`.
+- **Deps:** P0-03 · **Accept:** one trace shows both services, or the limitation is documented with `run_id` log correlation as the fallback.
+- **Test:** manual · **Effort:** S
+
+---
+
+## Phase 1: Deploy the existing workflow
+
+### P1-01 Fix LangGraph approval and persistence nodes (D1, D2)
+- **Goal:** Make the graph produce the same `OrchestrationResponse` as `Orchestrator`.
+- **Files:** `backend/app/services/langgraph_nodes.py`, `backend/app/services/langgraph_graph.py`
+- **Scope:** `create_approval_artifact` uses `HumanApprovalWorkflowAgent`. `persist_workflow_artifacts` and `emit_workflow_audit_event` call an injected persistence port (a `WorkflowStore` locally, the tool client remotely). Add `save_portfolio`/audit parity. Don't change graph topology.
+- **Deps:** P0-02 · **Accept:** P0-02 test passes (remove `xfail`). Trades are identical to `Orchestrator` for the sample payloads.
+- **Test:** `test_graph_parity.py` · **Effort:** M
+
+### P1-02 Fix agent LLM call name (D3)
+- **Goal:** Make the LLM path reachable.
+- **Files:** `backend/app/agents/memory.py`, `rebalancing.py`, `risk_compliance.py`, `trade_execution.py` (every `.invoke(` call on the adapter)
+- **Scope:** Call `invoke_model(...)` with the existing signature. No behavior change when flags are off.
+- **Deps:** P0-01 · **Accept:** a unit test with a mocked adapter shows the LLM branch executes.
+- **Test:** new `backend/tests/test_agent_llm_path.py` · **Effort:** S
+
+### P1-03 Gemini model adapter
+- **Goal:** Replace Bedrock with Gemini on Vertex using ADC, with the same interface.
+- **Files:** new `backend/app/adapters/gemini.py`, new `backend/app/adapters/model_factory.py`, `backend/app/core/config.py`, `backend/app/api/routes/explain.py`, `backend/app/services/langgraph_graph.py` (adapter construction), `backend/pyproject.toml` (`google-genai`)
+- **Scope:** Implement `invoke_model` and `invoke_model_streaming` returning the existing `ModelResponse`/`TokenUsage`. Select the provider with `LLM_PROVIDER=gemini|bedrock`. Use one Gemini model ID from config (verify the current model name in P0). Keep Bedrock for local use.
+- **Deps:** P1-02 · **Accept:** the explain endpoint streams from Gemini in the dev project. Token usage is populated.
+- **Test:** mocked unit test + manual · **Effort:** M
+
+### P1-04 Firestore WorkflowStore
+- **Goal:** Persist operational records in Firestore.
+- **Files:** new `backend/app/persistence/firestore_store.py`, `backend/app/persistence/dependencies.py`, `backend/app/core/config.py`, `backend/pyproject.toml` (`google-cloud-firestore`)
+- **Scope:** Implement the full `WorkflowStore` protocol (including `list_approvals` and `list_audit_events`) with collections `portfolios`, `approvals`, `audit_events`. Reuse `to_jsonable` from `dynamodb_store.py`. Run `update_approval` in a transaction. Select with `PERSISTENCE_MODE=firestore`.
+- **Deps:** P0-01 · **Accept:** existing route tests pass against the Firestore emulator.
+- **Test:** `test_rebalance.py` parameterized over the in-memory and emulator stores · **Effort:** L
+
+### P1-05 Tool service router
+- **Goal:** Expose the deterministic tools over authenticated HTTP.
+- **Files:** new `backend/app/tools/router.py`, new `backend/app/tools/models.py`, `backend/app/main.py` (`APP_ROLE=tools` mounts only this router + health)
+- **Scope:** `POST /tools/get_portfolio`, `/tools/compute_drift` (`portfolio.py`), `/tools/evaluate_policy` (`policy.py`), `/tools/generate_proposal` (`proposal.py`), `/tools/persist_proposal`, `/tools/audit`. Use the existing contracts for request/response.
+- **Deps:** P1-04 · **Accept:** each endpoint returns the same values as calling the function directly.
+- **Test:** new `backend/tests/test_tools_router.py` · **Effort:** M
+
+### P1-06 Tool client used by graph nodes
+- **Goal:** Have the agent run call the tools instead of in-process calculations when deployed.
+- **Files:** new `backend/app/tools/client.py`, `backend/app/services/langgraph_graph.py` (rebalancing, risk, and proposal nodes; persist node)
+- **Scope:** `httpx` client with a Google ID token (audience = tools URL), timeout, and 1 retry on 5xx. `TOOL_MODE=inprocess|remote`, where `inprocess` keeps the current behavior. Agents still build the stage results.
+- **Deps:** P1-05 · **Accept:** graph parity test passes in both modes (remote mode against TestClient).
+- **Test:** `test_graph_parity.py` · **Effort:** M
+
+### P1-07 Idempotent proposal persistence (D4)
+- **Goal:** Make repeated requests return the same proposal.
+- **Files:** `backend/app/agents/human_approval.py`, `backend/app/tools/router.py`, `backend/app/persistence/firestore_store.py`, `frontend/src/app/core/api/rebalance.service.ts` (send `Idempotency-Key`)
+- **Scope:** `approval_id = "apr_" + sha256(account_id + idempotency_key)[:20]`, where the key comes from the client (falling back to `correlation.request_id`). Persist with Firestore `create()`. If the record exists, return the stored artifact.
+- **Deps:** P1-04 · **Accept:** two identical POSTs produce one Firestore document.
+- **Test:** new `test_idempotency.py` · **Effort:** S
+
+### P1-08 Agent Runtime wrapper and deploy script
+- **Goal:** Host the graph on Agent Runtime.
+- **Files:** new `backend/app/agent_runtime/app.py` (`RebalanceGraphApp`: `set_up` builds the graph and clients, `query(request: dict, run_id, session_id)` returns `OrchestrationResponse` JSON), new `backend/app/agent_runtime/deploy.py`
+- **Scope:** Follow the call pattern verified in P0-03. Send the requirements list from `pyproject`. Set env `TOOL_MODE=remote`, `TOOLS_URL`, `LLM_PROVIDER=gemini`, and research/sentiment remote flags `false`. Use the custom service account.
+- **Deps:** P1-01, P1-06, P0-03 · **Accept:** a remote `query()` with the sample payload returns `READY_FOR_REVIEW` with trades.
+- **Test:** new `backend/tests/gcp/test_runtime_smoke.py` (marked `gcp`, opt-in) · **Effort:** M
+
+### P1-09 API invokes Agent Runtime
+- **Goal:** Make `/api/rebalance` use the deployed graph.
+- **Files:** `backend/app/api/routes/rebalance.py`, new `backend/app/services/runtime_client.py`, `backend/app/core/config.py`
+- **Scope:** `ORCHESTRATION_MODE=local|agent_runtime`, where `local` keeps `Orchestrator`. Generate `run_id` and map errors to `StructuredError` (502 with a retry hint).
+- **Deps:** P1-08 · **Accept:** the UI flow works end to end. A Runtime failure returns an understandable error.
+- **Test:** route test with a mocked runtime client · **Effort:** S
+
+### P1-10 Container and Terraform baseline
+- **Goal:** Make the infrastructure reproducible.
+- **Files:** `backend/Dockerfile` (`PORT` env, drop `requests` healthcheck), new `infra/gcp/terraform/{main,variables,outputs,apis,iam,run,firestore,artifact_registry,budget}.tf`
+- **Scope:** Enable APIs. Create Artifact Registry, Firestore (Native), 4 service accounts with the roles in architecture.md §4, Cloud Run `rebalancer-api` and `rebalancer-tools` (tools: no unauthenticated access; invoker = Runtime SA + API SA), the frontend bucket, and a budget. Optionally include `google_vertex_ai_reasoning_engine` if P0-03 shows it fits; otherwise use the SDK script.
+- **Deps:** P0-04 (region) · **Accept:** `terraform apply` from clean succeeds, and `destroy` succeeds.
+- **Test:** `terraform validate` + apply in the POC project · **Effort:** L
+
+### P1-11 Seed script and deploy script
+- **Goal:** Provide sample data and one-command deploys.
+- **Files:** new `backend/scripts/seed_firestore.py` (uses `seeds/*.jsonl` + `acct_demo`), new `infra/gcp/scripts/deploy.sh`, new `infra/gcp/scripts/publish_frontend.sh` (adapted from `infra/scripts/publish_frontend.sh`)
+- **Scope:** deploy.sh runs tests, then builds, applies, deploys the Runtime, and publishes the frontend. It's idempotent.
+- **Deps:** P1-10 · **Accept:** a fresh project reaches the demo state with one script plus seeding.
+- **Test:** manual · **Effort:** M
+
+### P1-12 Structured logging baseline
+- **Goal:** Produce correlatable JSON logs.
+- **Files:** new `backend/app/core/logging.py`, `backend/app/main.py`, `backend/app/agent_runtime/app.py`
+- **Scope:** JSON logs with `run_id`, `session_id`, `proposal_id`, and `logging.googleapis.com/trace`. Redact holdings and prompts.
+- **Deps:** P1-09 · **Accept:** Logs Explorer filter `jsonPayload.run_id=...` shows the API, Runtime, and tools entries.
+- **Test:** unit test of the redaction helper · **Effort:** S
+
+---
+
+## Phase 2: Managed context and analytics
+
+### P2-01 Sessions adapter
+- **Files:** new `backend/app/adapters/sessions.py`, `backend/app/agent_runtime/app.py`, `backend/app/api/routes/rebalance.py` (accept and return `session_id`), `frontend/src/app/core/api/rebalance.service.ts`, `frontend/src/app/app.ts` (keep `session_id` per conversation)
+- **Scope:** Create or reuse a session (user = actor). Append a user-request event and a summary event. Use the method names from P0-04.
+- **Deps:** P0-04, P1-09 · **Accept:** events are visible for each run, and the same `session_id` is reused within a conversation.
+- **Test:** `tests/gcp/test_sessions.py` (opt-in) · **Effort:** M
+
+### P2-02 Memory Bank adapter
+- **Files:** `backend/app/adapters/memory.py` (+`MemoryBankAdapter.retrieve`), `backend/app/services/langgraph_graph.py` (`hydrate_memory_node` chooses the adapter by `MEMORY_MODE`)
+- **Scope:** Retrieve with scope `{"user_id": actor_id}`, top 5, 1,000-character cap, mapped to the existing `MemoryItem`.
+- **Deps:** P2-01 · **Accept:** retrieved items appear in `memory_output`.
+- **Test:** mocked unit test · **Effort:** S
+
+### P2-03 Memory generation trigger
+- **Files:** `backend/app/agent_runtime/app.py`
+- **Scope:** After the response is ready, trigger asynchronous memory generation from the session. Ignore failures with a warning log.
+- **Deps:** P2-01, P2-02 · **Accept:** a preference stated in session A is retrievable in session B.
+- **Test:** `tests/gcp/test_memory_scenario.py` · **Effort:** S
+
+### P2-04 Use memory in explanation and limit topics
+- **Files:** `.kiro/prompts/trade-proposal-agent/v1.0.0.yaml` (add a `{user_preferences}` block, labeled non-authoritative), `backend/app/agents/trade_execution.py`, Memory Bank config in `deploy.py`
+- **Scope:** Restrict memory topics to presentation preferences if supported (P0-04). Otherwise filter by category.
+- **Deps:** P2-03 · **Accept:** in session B, the explanation is short and includes a trade table. Trade numbers are unchanged.
+- **Test:** memory scenario test asserts the trades equal the deterministic output · **Effort:** M
+
+### P2-05 Memory delete endpoint
+- **Files:** new `backend/app/api/routes/memory.py`, `backend/app/main.py`
+- **Scope:** `GET /api/memory` lists the caller's memories. `DELETE /api/memory/{id}` checks that the memory belongs to the caller's scope.
+- **Deps:** P2-02 · **Accept:** after deletion, session C reverts to the default style.
+- **Test:** extends the memory scenario · **Effort:** S
+
+### P2-06 BigQuery proposal events
+- **Files:** new `infra/gcp/terraform/bigquery.tf`, `backend/app/tools/router.py`, new `backend/app/adapters/analytics.py`, `docs/migration/architecture.md` §6 (queries)
+- **Scope:** Table `proposal_events(event_ts, proposal_id, account_id, event_type, workflow_state, max_abs_drift_pct, trade_count, run_id)`. Insert best-effort on persist and on approval action. Write 3 sample queries.
+- **Deps:** P1-05 · **Accept:** rows appear after a demo run, and the queries return results.
+- **Test:** mocked unit test · **Effort:** M
+
+### P2-07 Retire redundant persistence config
+- **Files:** `backend/app/core/config.py`, `backend/app/persistence/dynamodb_store.py` (no change; just excluded from the GCP path), `docs/migration/poc-migration-plan.md` (record the checkpoint limitation)
+- **Scope:** Remove the sessions and memory-queue table settings from the GCP configuration. Keep the AWS path untouched.
+- **Deps:** P2-01 · **Accept:** no unused GCP settings remain.
+- **Test:** existing suite · **Effort:** S
+
+---
+
+## Phase 3: Governance and isolation
+
+### P3-01 VPC, subnet, and network attachment
+- **Files:** new `infra/gcp/terraform/network.tf`
+- **Scope:** Create a VPC, a subnet with Private Google Access, and a network attachment for the PSC interface.
+- **Deps:** P1-10 · **Accept:** `terraform apply` succeeds. **Test:** validate · **Effort:** S
+
+### P3-02 Agent Gateway (egress), Registry, and IAM policy
+- **Files:** new `infra/gcp/scripts/gateway_setup.sh` (or Terraform if P0-05 found resources), `backend/app/agent_runtime/deploy.py` (`agent_gateway_config`, `identity_type=AGENT_IDENTITY`)
+- **Scope:** Register the tools endpoint (via HTTP or an MCP facade, per P0-05). Allow LLM access. Use an IAM UAP that permits only the tools endpoint.
+- **Deps:** P0-05, P3-01 · **Accept:** agent→tool calls succeed through the gateway. A non-registered destination is denied.
+- **Test:** `tests/gcp/test_gateway_policy.py` · **Effort:** L
+
+### P3-03 Private tools ingress
+- **Files:** `infra/gcp/terraform/run.tf`, `backend/app/agent_runtime/deploy.py` (PSC interface config)
+- **Scope:** Set tools ingress to `internal` and remove the API SA invoker grant. Validate the path from Runtime through PSC to tools. If it fails, record the fallback from plan R3.
+- **Deps:** P3-01, P3-02 · **Accept:** curl from the internet → 403/404. An identity without the grant → 403. The agent run succeeds.
+- **Test:** `tests/gcp/test_tool_bypass.py` · **Effort:** M
+
+### P3-04 Model Armor template on the gateway
+- **Files:** `infra/gcp/scripts/gateway_setup.sh` (template + attach), `backend/app/agent_runtime/app.py` (map a block to `CONTENT_BLOCKED` stage/audit), `frontend/src/app/app.ts` (message)
+- **Scope:** Enable prompt-injection/jailbreak and sensitive-data filters in block mode. Fail closed.
+- **Deps:** P3-02 · **Accept:** the injection sample is blocked with an understandable UI message and an audit event.
+- **Test:** `tests/gcp/test_prompt_injection.py` · **Effort:** M
+
+### P3-05 External LB, Cloud Armor, and IAP
+- **Files:** new `infra/gcp/terraform/edge.tf`, `infra/gcp/terraform/run.tf` (API ingress `internal-and-cloud-load-balancing`)
+- **Scope:** Serverless NEG for the API, a backend bucket for the UI, a managed certificate, a Cloud Armor policy (OWASP sqli/xss + rate limit), and IAP on the API backend.
+- **Deps:** P1-10 · **Accept:** the direct `run.app` URL is refused. The LB serves the UI. A Cloud Armor test request is blocked.
+- **Test:** manual curl checklist · **Effort:** L
+
+### P3-06 Actor from IAP and resource authorization
+- **Files:** new `backend/app/core/auth.py`, `backend/app/api/routes/rebalance.py`, `approvals.py`, `portfolios.py`, `preferences.py`, `backend/app/main.py` (restrict CORS to the LB origin)
+- **Scope:** Verify the IAP JWT. `actor_id` = email. Check that the actor owns `client_id`/`account_id` (simple `owner_email` field on `PortfolioRecord`, set by the seed). Keep the `local_owner` behavior when `AUTH_MODE=none`.
+- **Deps:** P3-05 · **Accept:** another user's account → 403.
+- **Test:** new `tests/test_authz.py` · **Effort:** M
+
+### P3-07 Tools-side caller check
+- **Files:** `backend/app/tools/router.py`
+- **Scope:** Defense in depth: check the expected caller identity from the verified token (Cloud Run already enforces IAM).
+- **Deps:** P3-03 · **Accept:** an unexpected service account → 403. **Test:** unit test · **Effort:** S
+
+### P3-08 Unauthorized access demo script
+- **Files:** new `infra/gcp/scripts/demo_security.sh`
+- **Scope:** Run the bypass, wrong-identity, injection, and Cloud Armor checks with readable output.
+- **Deps:** P3-03 to P3-06 · **Accept:** all four checks show the expected denial. **Effort:** S
+
+---
+
+## Phase 4: Observability and POC validation
+
+### P4-01 OpenTelemetry instrumentation
+- **Files:** new `backend/app/adapters/telemetry.py`, `backend/app/main.py`, `backend/app/tools/client.py`, `backend/app/agent_runtime/app.py`, `backend/pyproject.toml`
+- **Scope:** FastAPI + httpx instrumentation with the Cloud Trace exporter. Create a span per graph node, with attributes `run_id`/`session_id`/`proposal_id`, and a token-count attribute on model spans. Propagate as validated in P0-06.
+- **Deps:** P0-06 · **Accept:** one trace from API → Runtime → tool → Firestore write. **Test:** `tests/gcp/test_trace_linkage.py` · **Effort:** M
+
+### P4-02 Dashboard and saved queries
+- **Files:** new `infra/gcp/terraform/monitoring.tf`, append queries to `docs/migration/architecture.md` §6
+- **Scope:** Log-based metrics (`CONTENT_BLOCKED`, `TOOL_DENIED`, `tokens_total`) and one dashboard: API latency p50/p95, error rate, Runtime errors, blocked counts, tokens.
+- **Deps:** P4-01 · **Accept:** the dashboard renders demo traffic. **Effort:** S
+
+### P4-03 Retry/restart scenario
+- **Files:** `backend/tests/gcp/test_retry.py`
+- **Scope:** Force a tools 503 (env flag `TOOLS_FAULT_INJECT` in non-prod only). The API returns a clear error. Retrying with the same idempotency key succeeds, leaving one proposal.
+- **Deps:** P1-07, P1-09 · **Accept:** test passes. **Effort:** S
+
+### P4-04 Minimum test set run
+- **Files:** `backend/pyproject.toml` (`gcp` marker), `infra/gcp/scripts/run_poc_tests.sh`
+- **Scope:** Existing suite + parity + idempotency + authz + opt-in GCP tests (runtime smoke, sessions, memory, gateway, bypass, injection, retry, trace).
+- **Deps:** P1–P3 · **Accept:** all pass; results recorded. **Effort:** S
+
+### P4-05 Minimal CI (Cloud Build)
+- **Files:** new `cloudbuild.yaml`
+- **Scope:** Run tests → build image → push → deploy Cloud Run (`sa-deployer`, triggered manually). Runtime deploy stays scripted.
+- **Deps:** P1-11 · **Accept:** a manual trigger deploys a new revision. **Effort:** S
+
+### P4-06 Runbook: deploy, troubleshoot, rollback, teardown
+- **Files:** `docs/migration/architecture.md` §8 (expand; no new document)
+- **Scope:** Exact commands as used, the 5 most common failures, rollback rehearsal notes, and teardown verification.
+- **Deps:** P4-04 · **Accept:** a second engineer can deploy and tear down by following it. **Effort:** S
+
+---
+
+## Optional: ADK evaluation (not on the critical path)
+
+### PX-01 ADK fit assessment
+- **Files:** none (notes appended to the plan)
+- **Scope:** Compare effort (rewrite of `langgraph_graph.py`/`langgraph_nodes.py`/`langgraph_routing.py` as ADK agents, about 8–15 d) against the benefits: automatic Sessions handling, built-in Memory Bank tools, tighter platform integration. Decide only if Phase 2's manual Sessions/Memory glue proved costly.
+- **Deps:** Phase 2 complete · **Effort:** M

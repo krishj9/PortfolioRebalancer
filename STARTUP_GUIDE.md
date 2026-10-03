@@ -25,7 +25,7 @@ AI-powered portfolio rebalancing with LangGraph orchestration, AWS Bedrock LLMs,
 |------|---------|---------|
 | Docker + Docker Compose | Latest | Local backend services |
 | Node.js + npm | 18+ | Frontend dev server |
-| Python | 3.12+ | Backend (via uv) |
+| Python | 3.14+ | Backend (via uv) |
 | AWS CLI | Latest | Deployment |
 | Terraform | 1.5+ | Deployment |
 
