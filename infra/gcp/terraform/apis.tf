@@ -10,6 +10,7 @@ locals {
     "monitoring.googleapis.com",
     "networkservices.googleapis.com",
     "compute.googleapis.com",
+    "bigquery.googleapis.com",
   ]
 }
 

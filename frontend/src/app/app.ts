@@ -43,6 +43,7 @@ export class App implements OnDestroy {
   private readonly autoRecommendByAccount = signal<Record<string, boolean>>({});
   private readonly hasAutoSubmittedByAccount = signal<Record<string, boolean>>({});
   protected readonly rebalanceError = signal<string | null>(null);
+  protected readonly currentSessionId = signal<string | null>(null);
   protected readonly marketEvent = signal<MarketStreamEvent | null>(null);
   protected readonly portfolios = signal<PortfolioRecord[]>([]);
   protected readonly selectedAccountId = signal<string>('acct_demo');
@@ -202,6 +203,7 @@ export class App implements OnDestroy {
       return;
     }
     this.selectedAccountId.set(accountId);
+    this.currentSessionId.set(null);
     this.recommendation.set(null);
     this.hasAutoSubmittedByAccount.update(m => ({ ...m, [accountId]: false }));
     this.patchFormFromPortfolio(portfolio);
@@ -236,6 +238,9 @@ export class App implements OnDestroy {
   private submitRebalanceRequest(request: PortfolioRebalanceRequest) {
     this.rebalanceService.submit(request).subscribe({
       next: (response) => {
+        if (response.correlation?.session_id) {
+          this.currentSessionId.set(response.correlation.session_id);
+        }
         this.recommendation.set(response);
         this.approvalMessage.set(null);
         this.chatMessages.set([]);
@@ -357,6 +362,9 @@ export class App implements OnDestroy {
     const riskProfile = portfolio?.risk_profile;
 
     return {
+      correlation: {
+        session_id: this.currentSessionId() ?? undefined,
+      },
       actor: {
         actor_id: 'local_owner',
         display_name: 'Local Owner',
@@ -437,6 +445,9 @@ export class App implements OnDestroy {
     const accountProfile = portfolio?.account_profile;
 
     return {
+      correlation: {
+        session_id: this.currentSessionId() ?? undefined,
+      },
       actor: {
         actor_id: 'local_owner',
         display_name: 'Local Owner',

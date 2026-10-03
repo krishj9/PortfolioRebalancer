@@ -386,8 +386,55 @@ def _generate_summary(state: WorkflowGraphState, proposal_status: Optional[str] 
     elif state.get("degraded_reasons"):
         return f"Recommendation generated with degraded quality: {', '.join(state['degraded_reasons'])}"
 
+    # Check if LLM explanation with user preference exists
+    trade_proposal = state.get("trade_proposal_output")
+    llm_summary = None
+    if isinstance(trade_proposal, ExecutionProposalResponse):
+        llm_summary = (
+            trade_proposal.estimated_impact.get("proposal_summary")
+            or trade_proposal.estimated_impact.get("explanation")
+        )
+    elif isinstance(trade_proposal, dict):
+        impact = trade_proposal.get("estimated_impact", {})
+        llm_summary = impact.get("proposal_summary") or impact.get("explanation")
+
     # Base summary for READY_FOR_REVIEW
-    base = "Portfolio has drift outside tolerance and is ready for manual review."
+    if llm_summary:
+        base = llm_summary
+    else:
+        # Check user preferences from memory (non-authoritative style only)
+        memory_output = state.get("memory_output", {})
+        memory_items = (
+            memory_output.get("items", []) if isinstance(memory_output, dict) else []
+        )
+        pref_texts = " ".join(
+            [
+                str(item.get("summary") or item.get("content") or item)
+                if isinstance(item, dict)
+                else str(getattr(item, "summary", "") or getattr(item, "content", "") or item)
+                for item in memory_items
+            ]
+        ).lower()
+
+        if "short" in pref_texts or "concise" in pref_texts:
+            base = "Portfolio drifted outside tolerance; rebalancing proposed."
+        else:
+            base = "Portfolio has drift outside tolerance and is ready for manual review."
+
+        if "table" in pref_texts and trade_proposal:
+            trades = (
+                getattr(trade_proposal, "trades", [])
+                if hasattr(trade_proposal, "trades")
+                else trade_proposal.get("trades", [])
+            )
+            if trades:
+                table_lines = [
+                    f"{t.action.value if hasattr(t.action, 'value') else t.action} {t.symbol} (${float(t.estimated_value):,.0f})"
+                    if hasattr(t, "estimated_value")
+                    else f"{t.get('action')} {t.get('symbol')} (${float(t.get('estimated_value', 0)):,.0f})"
+                    for t in trades
+                ]
+                base = f"{base} Trade Table: | {' | '.join(table_lines)} |."
 
     # Append sentiment context if available and relevant
     sentiment_notes = _sentiment_notes(state)

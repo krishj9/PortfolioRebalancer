@@ -26,7 +26,7 @@ resource "google_service_account" "sa_deployer" {
 
 # ── IAM Role Bindings ────────────────────────────────────────────────────────
 
-# sa-api roles: Datastore user (Firestore access), Vertex AI user (query runtime)
+# sa-api roles: Datastore user (Firestore access), Vertex AI user (query runtime), BigQuery user
 resource "google_project_iam_member" "sa_api_datastore" {
   project = var.project_id
   role    = "roles/datastore.user"
@@ -39,10 +39,34 @@ resource "google_project_iam_member" "sa_api_aiplatform" {
   member  = "serviceAccount:${google_service_account.sa_api.email}"
 }
 
-# sa-tools roles: Datastore user (Firestore access)
+resource "google_project_iam_member" "sa_api_bigquery_editor" {
+  project = var.project_id
+  role    = "roles/bigquery.dataEditor"
+  member  = "serviceAccount:${google_service_account.sa_api.email}"
+}
+
+resource "google_project_iam_member" "sa_api_bigquery_jobuser" {
+  project = var.project_id
+  role    = "roles/bigquery.jobUser"
+  member  = "serviceAccount:${google_service_account.sa_api.email}"
+}
+
+# sa-tools roles: Datastore user (Firestore access), BigQuery editor/jobUser
 resource "google_project_iam_member" "sa_tools_datastore" {
   project = var.project_id
   role    = "roles/datastore.user"
+  member  = "serviceAccount:${google_service_account.sa_tools.email}"
+}
+
+resource "google_project_iam_member" "sa_tools_bigquery_editor" {
+  project = var.project_id
+  role    = "roles/bigquery.dataEditor"
+  member  = "serviceAccount:${google_service_account.sa_tools.email}"
+}
+
+resource "google_project_iam_member" "sa_tools_bigquery_jobuser" {
+  project = var.project_id
+  role    = "roles/bigquery.jobUser"
   member  = "serviceAccount:${google_service_account.sa_tools.email}"
 }
 

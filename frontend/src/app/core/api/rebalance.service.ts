@@ -15,10 +15,14 @@ export class RebalanceService {
   submit(request: PortfolioRebalanceRequest) {
     const idempotencyKey =
       request.correlation?.idempotency_key || request.correlation?.request_id || crypto.randomUUID();
+    const headers: Record<string, string> = {
+      'Idempotency-Key': idempotencyKey,
+    };
+    if (request.correlation?.session_id) {
+      headers['X-Session-ID'] = request.correlation.session_id;
+    }
     return this.http.post<OrchestrationResponse>(apiUrl('/rebalance'), request, {
-      headers: {
-        'Idempotency-Key': idempotencyKey,
-      },
+      headers,
     });
   }
 

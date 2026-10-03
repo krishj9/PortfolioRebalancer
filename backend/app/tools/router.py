@@ -1,8 +1,10 @@
+from datetime import UTC, datetime
 import logging
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException
 
+from app.adapters.analytics import BaseAnalyticsAdapter, get_analytics_adapter
 from app.contracts.analysis import (
     ApprovalArtifact,
     AuditEvent,
@@ -76,9 +78,59 @@ def generate_proposal(request: GenerateProposalRequest) -> ExecutionProposalResp
 def persist_proposal(
     request: PersistProposalRequest,
     store: Annotated[WorkflowStore, Depends(get_workflow_store)],
+    analytics: Annotated[BaseAnalyticsAdapter, Depends(get_analytics_adapter)],
 ) -> ApprovalArtifact:
-    """Persist an approval artifact to the operational store."""
-    return store.save_approval(request.approval_artifact)
+    """Persist an approval artifact to the operational store and emit analytics event."""
+    saved = store.save_approval(request.approval_artifact)
+
+    try:
+        artifact = request.approval_artifact
+        max_drift = 0.0
+        if (
+            artifact.recommendation
+            and artifact.recommendation.risk_policy
+            and artifact.recommendation.risk_policy.drift
+        ):
+            max_drift = max(
+                abs(float(item.drift_pct))
+                for item in artifact.recommendation.risk_policy.drift
+            )
+
+        trade_count = 0
+        if (
+            artifact.recommendation
+            and artifact.recommendation.proposal
+            and artifact.recommendation.proposal.trades
+        ):
+            trade_count = len(artifact.recommendation.proposal.trades)
+
+        workflow_state = "PENDING_APPROVAL"
+        if artifact.recommendation and artifact.recommendation.workflow_state:
+            workflow_state = str(artifact.recommendation.workflow_state)
+
+        account_id = "unknown"
+        if artifact.account_profile and artifact.account_profile.account_id:
+            account_id = artifact.account_profile.account_id
+
+        run_id = (
+            getattr(artifact.correlation, "run_id", None)
+            or getattr(artifact.correlation, "trace_id", None)
+        ) if artifact.correlation else None
+
+        analytics.emit_proposal_event(
+            event_ts=datetime.now(UTC),
+            proposal_id=artifact.approval_id,
+            account_id=account_id,
+            event_type="PROPOSAL_CREATED",
+            workflow_state=workflow_state,
+            max_abs_drift_pct=max_drift,
+            trade_count=trade_count,
+            run_id=run_id,
+        )
+    except Exception as exc:
+        logger.warning("Failed to emit proposal_created analytics event: %s", exc)
+
+    return saved
 
 
 @router.post("/audit", response_model=AuditEvent)

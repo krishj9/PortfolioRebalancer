@@ -74,6 +74,12 @@ export interface PortfolioRecord {
 
 export interface OrchestrationResponse {
   workflow_state: 'NORMAL' | 'DEGRADED' | 'LOW_CONFIDENCE' | 'BLOCKED';
+  correlation?: {
+    request_id?: string;
+    session_id?: string;
+    trace_id?: string;
+    idempotency_key?: string;
+  };
   recommendation_package?: {
     summary: string;
     agent_stages: Array<{

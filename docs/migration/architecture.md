@@ -115,12 +115,99 @@ Single policy: OWASP preconfigured `sqli`/`xss` rules in preview→enforce, one 
 | Firestore records | Business state (portfolio, proposal, approval) | Conversation history | Source of truth |
 | LangGraph checkpoint | Per-superstep graph snapshot via checkpointer | Provided by Sessions/Memory Bank | **Not used**; docs show Postgres (AlloyDB/Cloud SQL) checkpointers only [VERIFIED-DOC]; graph is single-shot, retry is whole-run |
 
-## 6. Observability
+## 6. Observability and analytics
 
+### Observability
 - OpenTelemetry SDK in API and tools (`opentelemetry-instrumentation-fastapi`, `-httpx`), exporter to Cloud Trace; Agent Runtime tracing enabled per platform docs; W3C `traceparent` passed in the `query()` payload and tool HTTP headers. Runtime context propagation **[UNVERIFIED → P0-06]**.
 - Span attributes / log fields: `trace_id`, `run_id`, `session_id`, `proposal_id`. No full prompts, no holdings arrays.
 - Metrics: Cloud Run request latency/error (built-in); log-based metrics for `CONTENT_BLOCKED`, `TOOL_DENIED`, token counts (from Gemini `usage_metadata`).
 - One Cloud Monitoring dashboard + saved Logs Explorer queries.
+
+### Proposal event analytics (BigQuery)
+Proposal events are inserted best-effort via `BigQueryAnalyticsAdapter` on proposal persistence (`tools/router.py`) and on approval actions (`routes/approvals.py`).
+- **Dataset**: `portfolio_analytics`
+- **Table**: `proposal_events(event_ts, proposal_id, account_id, event_type, workflow_state, max_abs_drift_pct, trade_count, run_id)` partitioned daily by `event_ts`.
+
+#### Sample analytics queries
+
+```sql
+-- Query 1: Proposals by status, trade volume, and average max drift (P2-06 acceptance)
+SELECT
+  workflow_state,
+  COUNT(DISTINCT proposal_id) AS proposal_count,
+  COUNT(DISTINCT account_id) AS accounts_affected,
+  ROUND(AVG(max_abs_drift_pct) * 100, 2) AS avg_max_drift_pct,
+  SUM(trade_count) AS total_trades_proposed
+FROM
+  `mybrightday-dev.portfolio_analytics.proposal_events`
+WHERE
+  event_ts >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 30 DAY)
+GROUP BY
+  workflow_state
+ORDER BY
+  proposal_count DESC;
+```
+
+```sql
+-- Query 2: Daily proposal activity and approval conversion rate
+WITH daily_events AS (
+  SELECT
+    DATE(event_ts) AS event_date,
+    proposal_id,
+    LOGICAL_OR(event_type = 'PROPOSAL_CREATED') AS was_created,
+    LOGICAL_OR(event_type = 'PROPOSAL_APPROVE') AS was_approved,
+    LOGICAL_OR(event_type = 'PROPOSAL_REJECT') AS was_rejected
+  FROM
+    `mybrightday-dev.portfolio_analytics.proposal_events`
+  WHERE
+    event_ts >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 14 DAY)
+  GROUP BY
+    event_date,
+    proposal_id
+)
+SELECT
+  event_date,
+  COUNTIF(was_created) AS total_proposals_created,
+  COUNTIF(was_approved) AS total_proposals_approved,
+  COUNTIF(was_rejected) AS total_proposals_rejected,
+  ROUND(SAFE_DIVIDE(COUNTIF(was_approved), COUNTIF(was_created)) * 100, 1) AS approval_rate_pct
+FROM
+  daily_events
+GROUP BY
+  event_date
+ORDER BY
+  event_date DESC;
+```
+
+```sql
+-- Query 3: High-drift accounts requiring rebalancing attention (>5% drift)
+SELECT
+  account_id,
+  proposal_id,
+  run_id,
+  event_ts AS latest_event_ts,
+  workflow_state,
+  ROUND(max_abs_drift_pct * 100, 2) AS max_drift_pct,
+  trade_count
+FROM (
+  SELECT
+    account_id,
+    proposal_id,
+    run_id,
+    event_ts,
+    workflow_state,
+    max_abs_drift_pct,
+    trade_count,
+    ROW_NUMBER() OVER(PARTITION BY account_id ORDER BY event_ts DESC) AS rn
+  FROM
+    `mybrightday-dev.portfolio_analytics.proposal_events`
+  WHERE
+    max_abs_drift_pct >= 0.05
+)
+WHERE rn = 1
+ORDER BY
+  max_drift_pct DESC;
+```
 
 ## 7. Official documentation references (checked 2026-10-03)
 

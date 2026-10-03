@@ -46,8 +46,8 @@ class TradeExecutionProposalAgent:
         self.feature_flags = get_feature_flags()
         self.llm_config = get_llm_config()
         
-        # Load prompt templates if LLM is enabled
-        if self.feature_flags.trade_proposal_agent_llm_enabled and self.prompt_loader:
+        # Load prompt templates if prompt loader is provided
+        if self.prompt_loader:
             self._load_templates()
 
     def _load_templates(self) -> None:
@@ -61,7 +61,10 @@ class TradeExecutionProposalAgent:
             self.feature_flags.trade_proposal_agent_llm_enabled = False
 
     async def run(
-        self, snapshot: PortfolioSnapshot, risk_policy: RiskPolicyResponse
+        self,
+        snapshot: PortfolioSnapshot,
+        risk_policy: RiskPolicyResponse,
+        memory: Optional[dict[str, Any]] = None,
     ) -> tuple[AgentStageResult, ExecutionProposalResponse]:
         """
         Execute trade proposal generation.
@@ -85,10 +88,14 @@ class TradeExecutionProposalAgent:
             if self.feature_flags.trade_proposal_agent_llm_enabled and self.bedrock_adapter:
                 try:
                     llm_analysis = await self._generate_llm_analysis(
-                        snapshot, risk_policy, proposal
+                        snapshot, risk_policy, proposal, memory=memory
                     )
                     if llm_analysis and llm_analysis.get("proposal_rationale"):
-                        logger.info(f"LLM proposal rationale: {llm_analysis.get('proposal_rationale', {}).get('proposal_summary')}")
+                        rationale = llm_analysis["proposal_rationale"]
+                        logger.info(f"LLM proposal rationale: {rationale.get('proposal_summary')}")
+                        if "proposal_summary" in rationale:
+                            proposal.estimated_impact["proposal_summary"] = rationale["proposal_summary"]
+                            proposal.estimated_impact["explanation"] = rationale["proposal_summary"]
                 except Exception as e:
                     logger.error(f"LLM analysis failed: {e}", exc_info=True)
                     if not self.feature_flags.fallback_on_llm_failure:
@@ -110,12 +117,13 @@ class TradeExecutionProposalAgent:
         snapshot: PortfolioSnapshot,
         risk_policy: RiskPolicyResponse,
         proposal: ExecutionProposalResponse,
+        memory: Optional[dict[str, Any]] = None,
     ) -> Optional[dict[str, Any]]:
         """Generate LLM-enhanced proposal rationale and impact explanation."""
         
         # Generate proposal rationale
         proposal_rationale = await self.generate_proposal_rationale(
-            snapshot, risk_policy, proposal
+            snapshot, risk_policy, proposal, memory=memory
         )
         
         # Generate estimated impact explanation
@@ -133,6 +141,7 @@ class TradeExecutionProposalAgent:
         snapshot: PortfolioSnapshot,
         risk_policy: RiskPolicyResponse,
         proposal: ExecutionProposalResponse,
+        memory: Optional[dict[str, Any]] = None,
     ) -> Optional[dict[str, Any]]:
         """
         Generate LLM-enhanced proposal rationale.
@@ -141,21 +150,54 @@ class TradeExecutionProposalAgent:
             snapshot: Portfolio snapshot
             risk_policy: Risk policy verdict
             proposal: Deterministic trade proposal
+            memory: Optional retrieved memory/preferences context
             
         Returns:
             Dictionary with proposal rationale
         """
         try:
+            # Extract non-authoritative presentation preferences
+            user_prefs_text = "No specific presentation preferences provided."
+            if memory and isinstance(memory, dict):
+                items = memory.get("items", [])
+                pref_facts = []
+                for item in items:
+                    fact = (
+                        item.get("content")
+                        or item.get("summary")
+                        if isinstance(item, dict)
+                        else getattr(item, "content", getattr(item, "summary", ""))
+                    )
+                    if fact:
+                        pref_facts.append(f"- {fact}")
+                if pref_facts:
+                    user_prefs_text = "\n".join(pref_facts)
+
+            trades_list = []
+            for t in proposal.trades:
+                action = t.action.value if hasattr(t.action, "value") else str(t.action)
+                sym = t.symbol
+                val = float(t.estimated_value) if hasattr(t, "estimated_value") else 0.0
+                trades_list.append({
+                    "action": action,
+                    "quantity": 1,
+                    "symbol": sym,
+                    "price": val,
+                    "current_quantity": 0,
+                    "target_quantity": 1,
+                })
+
             # Prepare template inputs
             template_inputs = {
                 "portfolio_id": getattr(snapshot, "portfolio_id", getattr(snapshot, "account_id", snapshot.snapshot_id)),
                 "portfolio_value": float(snapshot.total_value),
                 "risk_tolerance": "MODERATE",  # TODO: Get from request
+                "user_preferences": user_prefs_text,
                 "drift_summary": "Portfolio drift analysis",  # TODO: Get from rebalancing agent
-                "policy_verdict": risk_policy.verdict.value,
-                "proposed_trades": [
+                "policy_verdict": risk_policy.verdict.value if hasattr(risk_policy.verdict, "value") else str(risk_policy.verdict),
+                "proposed_trades": trades_list or [
                     {
-                        "action": "BUY",  # TODO: Extract from proposal
+                        "action": "BUY",
                         "quantity": 0,
                         "symbol": "UNKNOWN",
                         "price": 0.0,
@@ -180,11 +222,17 @@ class TradeExecutionProposalAgent:
             
             # Validate response
             if self.validator:
-                validation_result = await self.validator.validate_response(
-                    response.content,
-                    template["validation"]["output_schema"],
-                    confidence_threshold=template["validation"]["confidence_threshold"],
-                )
+                if hasattr(self.validator, "validate_response"):
+                    validation_result = await self.validator.validate_response(
+                        response.content,
+                        template["validation"]["output_schema"],
+                        confidence_threshold=template["validation"]["confidence_threshold"],
+                    )
+                else:
+                    validation_result = await self.validator.validate(
+                        response,
+                        confidence_threshold=template["validation"]["confidence_threshold"],
+                    )
                 
                 if not validation_result.is_valid:
                     logger.warning(f"Proposal rationale validation failed: {validation_result.violations}")

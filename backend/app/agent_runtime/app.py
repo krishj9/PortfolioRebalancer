@@ -25,6 +25,9 @@ class RebalanceGraphApp:
         tools_url: str = "http://localhost:8000",
         llm_provider: str = "gemini",
         gemini_model_id: str = "gemini-2.5-flash",
+        sessions_mode: str = "local",
+        memory_generation_enabled: bool | None = None,
+        client: Optional[Any] = None,
     ) -> None:
         self.project = project
         self.location = location
@@ -32,7 +35,15 @@ class RebalanceGraphApp:
         self.tools_url = tools_url
         self.llm_provider = llm_provider
         self.gemini_model_id = gemini_model_id
+        self.sessions_mode = sessions_mode
+        self.memory_generation_enabled = (
+            (sessions_mode == "agent_platform")
+            if memory_generation_enabled is None
+            else memory_generation_enabled
+        )
+        self._client = client
         self._orchestrator = None
+        self._sessions_adapter = None
 
     def set_up(self) -> None:
         """Initialize settings, ToolClient, and compile LangGraph workflow."""
@@ -72,8 +83,17 @@ class RebalanceGraphApp:
             store=None,
             tool_client=tool_client,
         )
+
+        from app.adapters.sessions import get_sessions_adapter
+
+        self._sessions_adapter = get_sessions_adapter(
+            mode=self.sessions_mode,
+            project=self.project,
+            location=self.location,
+        )
+
         logger.info(
-            f"RebalanceGraphApp set_up completed (tool_mode={effective_tool_mode}, tools_url={self.tools_url})"
+            f"RebalanceGraphApp set_up completed (tool_mode={effective_tool_mode}, tools_url={self.tools_url}, sessions_mode={self.sessions_mode})"
         )
 
     def query(
@@ -99,8 +119,30 @@ class RebalanceGraphApp:
             req = PortfolioRebalanceRequest.model_validate(request)
             if run_id:
                 req.correlation.trace_id = run_id
-            if session_id:
-                req.correlation.session_id = session_id
+
+            # Session lifecycle (Task P2-01)
+            effective_session_id = session_id or req.correlation.session_id
+            session_name = None
+            if self._sessions_adapter:
+                try:
+                    actor_id = req.actor.actor_id if req.actor else "local_owner"
+                    session_name = self._sessions_adapter.create_or_get_session(
+                        user_id=actor_id,
+                        session_id=effective_session_id,
+                    )
+                    req.correlation.session_id = session_name
+
+                    user_event_text = (
+                        f"Rebalance review requested for account '{req.account_profile.account_id}' "
+                        f"(client '{req.client_profile.client_id}')."
+                    )
+                    self._sessions_adapter.append_user_event(
+                        session_name=session_name,
+                        text=user_event_text,
+                        invocation_id=run_id,
+                    )
+                except Exception as sess_err:
+                    logger.warning(f"Failed to record session request event: {sess_err}")
 
             try:
                 loop = asyncio.get_running_loop()
@@ -113,6 +155,34 @@ class RebalanceGraphApp:
             else:
                 resp = asyncio.run(self._orchestrator.run(req))
 
+            if session_name:
+                resp.correlation.session_id = session_name
+                if self._sessions_adapter:
+                    try:
+                        summary_text = (
+                            resp.recommendation_package.summary
+                            if resp.recommendation_package and resp.recommendation_package.summary
+                            else f"Rebalance workflow completed with state: {resp.workflow_state}"
+                        )
+                        self._sessions_adapter.append_summary_event(
+                            session_name=session_name,
+                            text=summary_text,
+                            invocation_id=run_id,
+                        )
+                    except Exception as sess_err:
+                        logger.warning(f"Failed to record session summary event: {sess_err}")
+
+                # Trigger asynchronous memory generation (Task P2-03)
+                if self.memory_generation_enabled:
+                    import threading
+
+                    actor_id = req.actor.actor_id if req.actor else "local_owner"
+                    threading.Thread(
+                        target=self._trigger_memory_generation,
+                        args=(session_name, actor_id),
+                        daemon=True,
+                    ).start()
+
             return resp.model_dump(mode="json")
         except Exception as e:
             import traceback
@@ -123,3 +193,44 @@ class RebalanceGraphApp:
                 "error": str(e),
                 "traceback": traceback.format_exc(),
             }
+
+    def _trigger_memory_generation(
+        self,
+        session_name: str,
+        actor_id: str,
+        client: Optional[Any] = None,
+    ) -> None:
+        """Trigger asynchronous memory generation from session events (Task P2-03)."""
+        try:
+            effective_client = client or self._client or getattr(self._sessions_adapter, "_client", None)
+            if effective_client is None:
+                import agentplatform
+
+                effective_client = agentplatform.Client(project=self.project, location=self.location)
+
+            runtime_name = (
+                getattr(self._sessions_adapter, "_runtime_name", None)
+                or getattr(self._sessions_adapter, "runtime_name", None)
+            )
+            if not runtime_name:
+                from pathlib import Path
+
+                deployed_file = (
+                    Path(__file__).resolve().parent / "deployed_runtime.txt"
+                )
+                if deployed_file.exists():
+                    runtime_name = deployed_file.read_text().strip()
+
+            if runtime_name and session_name:
+                logger.info(
+                    f"Triggering asynchronous memory generation for session: {session_name} (user: {actor_id})"
+                )
+                effective_client.memory_banks.memories.generate(
+                    name=runtime_name,
+                    vertex_session_source={"session": session_name},
+                    scope={"user_id": actor_id},
+                )
+        except Exception as e:
+            logger.warning(
+                f"Asynchronous memory generation trigger failed for session {session_name}: {e}"
+            )

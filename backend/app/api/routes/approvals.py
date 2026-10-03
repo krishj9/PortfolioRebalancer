@@ -1,9 +1,11 @@
 from datetime import UTC, datetime
 from decimal import ROUND_HALF_UP, Decimal
+import logging
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException
 
+from app.adapters.analytics import BaseAnalyticsAdapter, get_analytics_adapter
 from app.contracts.analysis import (
     ApprovalAction,
     ApprovalActionRequest,
@@ -15,6 +17,8 @@ from app.contracts.domain import PortfolioHolding, PortfolioRecord, PortfolioSna
 from app.persistence.dependencies import get_workflow_store
 from app.persistence.memory_store import WorkflowStore
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter(prefix="/approvals", tags=["approvals"])
 
 
@@ -23,6 +27,7 @@ async def apply_approval_action(
     approval_id: str,
     action: ApprovalActionRequest,
     store: Annotated[WorkflowStore, Depends(get_workflow_store)],
+    analytics: Annotated[BaseAnalyticsAdapter, Depends(get_analytics_adapter)],
 ) -> ApprovalTransitionResult:
     approval = store.get_approval(approval_id)
     if approval is None:
@@ -36,6 +41,48 @@ async def apply_approval_action(
         raise HTTPException(status_code=422, detail="A note is required for this approval action")
 
     transition = store.update_approval(approval_id, action)
+    if transition.accepted:
+        try:
+            current_app = store.get_approval(approval_id)
+            if current_app:
+                max_drift = 0.0
+                if (
+                    current_app.recommendation
+                    and current_app.recommendation.risk_policy
+                    and current_app.recommendation.risk_policy.drift
+                ):
+                    max_drift = max(
+                        abs(float(item.drift_pct))
+                        for item in current_app.recommendation.risk_policy.drift
+                    )
+                trade_count = (
+                    len(current_app.recommendation.proposal.trades)
+                    if current_app.recommendation and current_app.recommendation.proposal
+                    else 0
+                )
+                account_id = (
+                    current_app.account_profile.account_id
+                    if current_app.account_profile
+                    else "unknown"
+                )
+                run_id = (
+                    getattr(current_app.correlation, "run_id", None)
+                    or getattr(current_app.correlation, "trace_id", None)
+                ) if current_app.correlation else None
+
+                analytics.emit_proposal_event(
+                    event_ts=datetime.now(UTC),
+                    proposal_id=approval_id,
+                    account_id=account_id,
+                    event_type=f"PROPOSAL_{action.action.value}",
+                    workflow_state=transition.next_status,
+                    max_abs_drift_pct=max_drift,
+                    trade_count=trade_count,
+                    run_id=run_id,
+                )
+        except Exception as exc:
+            logger.warning("Failed to emit proposal approval action analytics event: %s", exc)
+
     if transition.accepted and action.action == ApprovalAction.APPROVE:
         updated = store.get_approval(approval_id)
         if updated is not None:

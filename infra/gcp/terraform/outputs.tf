@@ -37,3 +37,13 @@ output "sa_deployer_email" {
   description = "Email of the deployer service account"
   value       = google_service_account.sa_deployer.email
 }
+
+output "bigquery_dataset_id" {
+  description = "BigQuery dataset ID for analytics"
+  value       = google_bigquery_dataset.portfolio_analytics.dataset_id
+}
+
+output "bigquery_proposal_events_table_id" {
+  description = "BigQuery table ID for proposal events"
+  value       = google_bigquery_table.proposal_events.table_id
+}

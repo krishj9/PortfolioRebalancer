@@ -27,9 +27,13 @@ async def create_rebalance_request(
     orchestrator: Annotated[Orchestrator, Depends(get_orchestrator)],
     runtime_client: Annotated[RuntimeClient, Depends(get_runtime_client)],
     idempotency_key: Annotated[Optional[str], Header(alias="Idempotency-Key")] = None,
+    session_id: Annotated[Optional[str], Header(alias="X-Session-ID")] = None,
 ) -> OrchestrationResponse:
     if idempotency_key and not request.correlation.idempotency_key:
         request.correlation.idempotency_key = idempotency_key
+
+    if session_id and not request.correlation.session_id:
+        request.correlation.session_id = session_id
 
     request.version = request.version.model_copy(
         update={
@@ -41,7 +45,7 @@ async def create_rebalance_request(
     )
 
     if settings.orchestration_mode == "agent_runtime":
-        return await runtime_client.run(request)
+        return await runtime_client.run(request, session_id=request.correlation.session_id)
 
     return await orchestrator.run(request)
 

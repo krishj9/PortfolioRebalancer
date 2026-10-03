@@ -127,7 +127,7 @@ Tool interface: plain authenticated HTTPS/JSON. We only add MCP if P0-05 shows A
 | Allocation models | Firestore (embedded in `PortfolioRecord.allocation_target`) | Same as today; no new model | None beyond the store | — |
 | Proposals and approval state | Firestore `approvals/{approval_id}` | Existing `ApprovalArtifact` already holds status and hash | Store, deterministic ID, transactional update | — |
 | Audit events | Firestore `audit_events` | Existing behavior | Store | — |
-| Checkpoints | **None** | Single-shot graph; approval lives outside the graph | — | No mid-run resume; retry the whole run |
+| Checkpoints | **None** | Single-shot graph; approval lives outside the graph | — | Checkpoint limitation: LangGraph checkpointers (AlloyDB/Cloud SQL) are excluded in this POC because conversation history is captured via Sessions and workflow execution is single-shot and idempotent. DynamoDB session/memory-queue tables are retired from the GCP configuration (P2-07). |
 | Analytics | BigQuery `proposal_events` | Small SQL demo | Best-effort row insert on proposal create and approval action | Not the system of record |
 | Files and reports | None (frontend bucket only) | The app produces no files | — | — |
 

@@ -187,18 +187,33 @@ async def hydrate_memory_node(state: WorkflowGraphState) -> dict:
     from app.adapters.prompts import PromptTemplateLoader
     from app.adapters.validation import ResponseValidator
     from app.agents.memory import MemoryPersonalizationAgent
-    from app.core.config import get_feature_flags
+    from app.core.config import get_feature_flags, get_settings
 
     try:
+        settings = get_settings()
+        if settings.memory_mode == "memory_bank":
+            from app.adapters.memory import MemoryBankAdapter
+
+            memory_adapter = MemoryBankAdapter(
+                project=settings.project_id,
+                location=settings.gcp_location,
+                runtime_name=settings.agent_runtime_resource_name or None,
+            )
+        else:
+            from app.adapters.memory import LocalMemoryAdapter
+
+            memory_adapter = LocalMemoryAdapter()
+
         feature_flags = get_feature_flags()
         if feature_flags.memory_agent_llm_enabled:
             agent = MemoryPersonalizationAgent(
+                memory_adapter=memory_adapter,
                 bedrock_adapter=get_model_adapter(),
                 prompt_loader=PromptTemplateLoader(),
                 validator=ResponseValidator(),
             )
         else:
-            agent = MemoryPersonalizationAgent()
+            agent = MemoryPersonalizationAgent(memory_adapter=memory_adapter)
 
         stage_result, payload = await agent.run(state["request"])
         return {
@@ -364,7 +379,11 @@ async def _placeholder_trade_proposal_node(
         else:
             agent = TradeExecutionProposalAgent(tool_client=tool_client)
 
-        stage_result, proposal = await agent.run(request.portfolio_snapshot, risk_policy)
+        stage_result, proposal = await agent.run(
+            request.portfolio_snapshot,
+            risk_policy,
+            memory=state.get("memory_output"),
+        )
         return {
             "trade_proposal_output": proposal,
             "agent_stages": [stage_result],

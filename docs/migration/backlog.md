@@ -157,46 +157,53 @@ Paths are relative to the repo root. "New" means the file doesn't exist yet.
 
 ## Phase 2: Managed context and analytics
 
-### P2-01 Sessions adapter
+### P2-01 Sessions adapter [COMPLETED]
 - **Files:** new `backend/app/adapters/sessions.py`, `backend/app/agent_runtime/app.py`, `backend/app/api/routes/rebalance.py` (accept and return `session_id`), `frontend/src/app/core/api/rebalance.service.ts`, `frontend/src/app/app.ts` (keep `session_id` per conversation)
 - **Scope:** Create or reuse a session (user = actor). Append a user-request event and a summary event. Use the method names from P0-04.
 - **Deps:** P0-04, P1-09 · **Accept:** events are visible for each run, and the same `session_id` is reused within a conversation.
-- **Test:** `tests/gcp/test_sessions.py` (opt-in) · **Effort:** M
+- **Status:** **PASSED** (2026-10-03). Implemented `BaseSessionsAdapter`, `InMemorySessionsAdapter`, and `AgentPlatformSessionsAdapter` in `sessions.py`. Integrated session creation, event recording (user rebalance request and model summary), and session reuse into `RebalanceGraphApp.query()` and `rebalance.py` route (with `X-Session-ID` header support). Updated Angular frontend (`rebalance.service.ts`, `app.ts`) to maintain `session_id` per conversation and pass it in requests. Verified with in-memory unit tests and live GCP test `test_remote_agent_platform_sessions_smoke` against `mybrightday-dev` Agent Platform.
+- **Test:** `tests/gcp/test_sessions.py` (passed locally & live GCP) · **Effort:** M
 
-### P2-02 Memory Bank adapter
+### P2-02 Memory Bank adapter [COMPLETED]
 - **Files:** `backend/app/adapters/memory.py` (+`MemoryBankAdapter.retrieve`), `backend/app/services/langgraph_graph.py` (`hydrate_memory_node` chooses the adapter by `MEMORY_MODE`)
 - **Scope:** Retrieve with scope `{"user_id": actor_id}`, top 5, 1,000-character cap, mapped to the existing `MemoryItem`.
 - **Deps:** P2-01 · **Accept:** retrieved items appear in `memory_output`.
-- **Test:** mocked unit test · **Effort:** S
+- **Status:** **PASSED** (2026-10-03). Implemented `MemoryBankAdapter` in `memory.py` with scoped retrieval (`{"user_id": actor_id}`), top 5 capping, 1,000-character fact truncation, relevance scoring, and fail-safe exception handling. Updated `hydrate_memory_node` to select `MemoryBankAdapter` when `MEMORY_MODE=memory_bank`. Updated `MemoryPersonalizationAgent` to query using actor ID. Added comprehensive unit tests in `test_memory_bank_adapter.py`.
+- **Test:** mocked unit test (`test_memory_bank_adapter.py`, 3 passed) · **Effort:** S
 
-### P2-03 Memory generation trigger
+### P2-03 Memory generation trigger [COMPLETED]
 - **Files:** `backend/app/agent_runtime/app.py`
 - **Scope:** After the response is ready, trigger asynchronous memory generation from the session. Ignore failures with a warning log.
 - **Deps:** P2-01, P2-02 · **Accept:** a preference stated in session A is retrievable in session B.
-- **Test:** `tests/gcp/test_memory_scenario.py` · **Effort:** S
+- **Status:** **PASSED** (2026-10-03). Implemented `_trigger_memory_generation` in `RebalanceGraphApp`, invoked asynchronously in background daemon thread after query completion and event logging. Supports client injection and graceful warning log on failure. Verified via mocked unit tests and live GCP test `test_cross_session_memory_generation_smoke` where user preference stated in Session A was synthesized into Vertex AI Memory Bank and retrieved in Session B.
+- **Test:** `tests/gcp/test_memory_scenario.py` (passed locally & live GCP) · **Effort:** S
 
-### P2-04 Use memory in explanation and limit topics
-- **Files:** `.kiro/prompts/trade-proposal-agent/v1.0.0.yaml` (add a `{user_preferences}` block, labeled non-authoritative), `backend/app/agents/trade_execution.py`, Memory Bank config in `deploy.py`
+### P2-04 Use memory in explanation and limit topics [COMPLETED]
+- **Files:** `.kiro/prompts/trade-proposal-agent/v1.0.0.yaml` (add a `{user_preferences}` block, labeled non-authoritative), `backend/app/agents/trade_execution.py`, `backend/app/services/langgraph_nodes.py`, `backend/app/services/langgraph_graph.py`
 - **Scope:** Restrict memory topics to presentation preferences if supported (P0-04). Otherwise filter by category.
 - **Deps:** P2-03 · **Accept:** in session B, the explanation is short and includes a trade table. Trade numbers are unchanged.
-- **Test:** memory scenario test asserts the trades equal the deterministic output · **Effort:** M
+- **Status:** **PASSED** (2026-10-03). Added non-authoritative `user_preferences` section to `.kiro/prompts/trade-proposal-agent/v1.0.0.yaml`. Updated `TradeExecutionProposalAgent` to inject presentation preferences into template inputs without modifying deterministic trade calculations. Updated `_generate_summary` in `langgraph_nodes.py` to adapt summary brevity and include trade tables when requested by user preferences. Verified via unit and scenario tests (`test_memory_scenario.py`) confirming trade symbols, actions, and values remain 100% invariant while explanation reflects presentation preferences.
+- **Test:** memory scenario test asserts the trades equal the deterministic output (`test_memory_scenario.py`, 4 passed) · **Effort:** M
 
-### P2-05 Memory delete endpoint
-- **Files:** new `backend/app/api/routes/memory.py`, `backend/app/main.py`
+### P2-05 Memory delete endpoint [COMPLETED]
+- **Files:** new `backend/app/api/routes/memory.py`, `backend/app/main.py`, `backend/app/adapters/memory.py`
 - **Scope:** `GET /api/memory` lists the caller's memories. `DELETE /api/memory/{id}` checks that the memory belongs to the caller's scope.
 - **Deps:** P2-02 · **Accept:** after deletion, session C reverts to the default style.
-- **Test:** extends the memory scenario · **Effort:** S
+- **Status:** **PASSED** (2026-10-03). Created `backend/app/api/routes/memory.py` mounting `GET /api/memory` and `DELETE /api/memory/{id}` in `main.py`. Added caller scope authorization check returning 403 Forbidden if memory belongs to a different user. Implemented deletion in `LocalMemoryAdapter` and `MemoryBankAdapter`. Added comprehensive test suite in `test_memory_routes.py` verifying retrieval, scope authorization, deletion, and reversion of presentation style to default upon memory deletion.
+- **Test:** `tests/test_memory_routes.py` (4 passed) · **Effort:** S
 
-### P2-06 BigQuery proposal events
+### P2-06 BigQuery proposal events [COMPLETED]
 - **Files:** new `infra/gcp/terraform/bigquery.tf`, `backend/app/tools/router.py`, new `backend/app/adapters/analytics.py`, `docs/migration/architecture.md` §6 (queries)
 - **Scope:** Table `proposal_events(event_ts, proposal_id, account_id, event_type, workflow_state, max_abs_drift_pct, trade_count, run_id)`. Insert best-effort on persist and on approval action. Write 3 sample queries.
 - **Deps:** P1-05 · **Accept:** rows appear after a demo run, and the queries return results.
-- **Test:** mocked unit test · **Effort:** M
+- **Status:** **PASSED** (2026-10-03). Defined BigQuery dataset `portfolio_analytics` and partitioned table `proposal_events` in Terraform (`bigquery.tf`, `apis.tf`, `iam.tf`, `outputs.tf`). Created `BaseAnalyticsAdapter`, `InMemoryAnalyticsAdapter`, and `BigQueryAnalyticsAdapter` in `analytics.py`. Integrated best-effort event emission into `persist_proposal` (`tools/router.py`) and `apply_approval_action` (`routes/approvals.py`). Appended 3 sample analytics queries to `architecture.md` §6. Created and verified comprehensive unit test suite (`test_analytics_adapter.py`, 6 passed) and live GCP smoke test (`tests/gcp/test_analytics.py`, passed live against BigQuery).
+- **Test:** mocked unit test & live GCP smoke test · **Effort:** M
 
-### P2-07 Retire redundant persistence config
+### P2-07 Retire redundant persistence config [COMPLETED]
 - **Files:** `backend/app/core/config.py`, `backend/app/persistence/dynamodb_store.py` (no change; just excluded from the GCP path), `docs/migration/poc-migration-plan.md` (record the checkpoint limitation)
 - **Scope:** Remove the sessions and memory-queue table settings from the GCP configuration. Keep the AWS path untouched.
 - **Deps:** P2-01 · **Accept:** no unused GCP settings remain.
+- **Status:** **PASSED** (2026-10-03). Segregated legacy DynamoDB session and memory queue table configurations in `config.py` as AWS/local-only, guarded their initialization in `dynamodb_store.py`, and retired them completely from the GCP Firestore/Agent Platform runtime path. Recorded checkpoint limitation in `poc-migration-plan.md` State ownership table.
 - **Test:** existing suite · **Effort:** S
 
 ---

@@ -91,7 +91,12 @@ class MemoryPersonalizationAgent:
 
     async def _run_deterministic(self, request: PortfolioRebalanceRequest) -> tuple[AgentStageResult, dict]:
         """Deterministic memory retrieval (original implementation)."""
-        memories = await self.memory_adapter.retrieve(request.client_profile.client_id)
+        user_id = (
+            request.actor.actor_id
+            if (request.actor and request.actor.actor_id)
+            else request.client_profile.client_id
+        )
+        memories = await self.memory_adapter.retrieve(user_id)
         payload = {"items": [memory.__dict__ for memory in memories], "conflicts": []}
         return completed_stage(self.name, f"Retrieved {len(memories)} memory item(s)."), payload
 
@@ -100,14 +105,19 @@ class MemoryPersonalizationAgent:
         try:
             # Step 1: Generate semantic query
             semantic_query_result = await self.generate_semantic_query(request)
-            
+
             if not semantic_query_result:
                 logger.warning("Semantic query generation failed, falling back to deterministic")
                 return await self._run_deterministic(request)
-            
+
             # Step 2: Retrieve memories (using semantic query or keywords)
+            user_id = (
+                request.actor.actor_id
+                if (request.actor and request.actor.actor_id)
+                else request.client_profile.client_id
+            )
             memories = await self.memory_adapter.retrieve(
-                request.client_profile.client_id,
+                user_id,
                 semantic_query=semantic_query_result.get("semantic_query"),
                 keywords=semantic_query_result.get("keywords"),
             )

@@ -157,8 +157,10 @@ class DynamoDBWorkflowStore:
         self._create_table_if_missing(existing, self.settings.approvals_table_name, "approval_id")
         self._create_table_if_missing(existing, self.settings.audit_events_table_name, "event_id")
         self._create_table_if_missing(existing, self.settings.portfolios_table_name, "account_id")
-        self._create_table_if_missing(existing, self.settings.sessions_table_name, "session_id")
-        self._create_table_if_missing(existing, self.settings.memory_queue_table_name, "task_id")
+        if self.settings.sessions_table_name:
+            self._create_table_if_missing(existing, self.settings.sessions_table_name, "session_id")
+        if self.settings.memory_queue_table_name:
+            self._create_table_if_missing(existing, self.settings.memory_queue_table_name, "task_id")
 
     def _seed_portfolios_if_empty(self) -> None:
         if self.list_portfolios():

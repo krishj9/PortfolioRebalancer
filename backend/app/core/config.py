@@ -182,12 +182,32 @@ class Settings(BaseSettings):
         """Backwards-compatibility property for dynamodb_mode."""
         return self.persistence_mode
 
-    # Table names (DynamoDB)
+    # Table names (DynamoDB - AWS/local legacy path only; retired from GCP path in P2-07)
     approvals_table_name: str = "asset-management-dev-approvals"
     audit_events_table_name: str = "asset-management-dev-audit-events"
     portfolios_table_name: str = "asset-management-dev-portfolios"
-    sessions_table_name: str = "asset-management-dev-sessions"
-    memory_queue_table_name: str = "asset-management-dev-memory-queue"
+    sessions_table_name: str | None = Field(
+        default="asset-management-dev-sessions",
+        description="Legacy DynamoDB sessions table (AWS/local only; retired from GCP path in P2-07)",
+    )
+    memory_queue_table_name: str | None = Field(
+        default="asset-management-dev-memory-queue",
+        description="Legacy DynamoDB memory queue table (AWS/local only; retired from GCP path in P2-07)",
+    )
+
+    # Analytics configuration (GCP BigQuery - Task P2-06)
+    analytics_mode: str = Field(
+        default="local",
+        description="Analytics export mode: local (in-memory) or bigquery",
+    )
+    bigquery_dataset: str = Field(
+        default="portfolio_analytics",
+        description="BigQuery dataset for portfolio analytics",
+    )
+    bigquery_table: str = Field(
+        default="proposal_events",
+        description="BigQuery table for proposal events",
+    )
 
     # Firestore configuration (GCP)
     firestore_project_id: str | None = Field(default="mybrightday-dev", description="GCP project for Firestore")
@@ -215,6 +235,20 @@ class Settings(BaseSettings):
     agent_runtime_resource_name: str = Field(
         default="",
         description="Resource name of deployed Vertex AI Agent Runtime",
+    )
+
+    # GCP Project and Location configuration
+    project_id: str = Field(default="mybrightday-dev", description="GCP Project ID")
+    gcp_location: str = Field(default="us-central1", description="GCP Region/Location")
+
+    # Context & Memory configuration (Task P2-01, P2-02)
+    sessions_mode: str = Field(
+        default="local",
+        description="Sessions mode: local or agent_platform",
+    )
+    memory_mode: str = Field(
+        default="local",
+        description="Memory retrieval mode: local or memory_bank",
     )
 
     # Market stream
