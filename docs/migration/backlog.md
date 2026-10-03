@@ -89,11 +89,12 @@ Paths are relative to the repo root. "New" means the file doesn't exist yet.
 - **Status:** **PASSED** (2026-10-03). Provisioned dedicated Firestore Native database `portfolio-rebalancer` in `us-central1` on project `mybrightday-dev`. Implemented `FirestoreWorkflowStore` with transactional `update_approval`, collection management (`portfolios`, `approvals`, `audit_events`), and default portfolio seeding. Added `PERSISTENCE_MODE=firestore` to `dependencies.py` and `Settings`. All 6 unit and live integration tests passed in `test_firestore_store.py`.
 - **Test:** `backend/tests/test_firestore_store.py` (unit + live integration) · **Effort:** L
 
-### P1-05 Tool service router
+### P1-05 Tool service router [COMPLETED]
 - **Goal:** Expose the deterministic tools over authenticated HTTP.
 - **Files:** new `backend/app/tools/router.py`, new `backend/app/tools/models.py`, `backend/app/main.py` (`APP_ROLE=tools` mounts only this router + health)
 - **Scope:** `POST /tools/get_portfolio`, `/tools/compute_drift` (`portfolio.py`), `/tools/evaluate_policy` (`policy.py`), `/tools/generate_proposal` (`proposal.py`), `/tools/persist_proposal`, `/tools/audit`. Use the existing contracts for request/response.
 - **Deps:** P1-04 · **Accept:** each endpoint returns the same values as calling the function directly.
+- **Status:** **PASSED** (2026-10-03). Created `backend/app/tools/models.py` and `router.py` exposing deterministic calculations (`get_portfolio`, `compute_drift`, `evaluate_policy`, `generate_proposal`, `persist_proposal`, `audit`). Updated `main.py` with `APP_ROLE=tools` role isolation (mounts `/tools` and `/health`, omits user-facing API routes). Added 7 unit tests in `test_tools_router.py` confirming 100% parity with direct function calls.
 - **Test:** new `backend/tests/test_tools_router.py` · **Effort:** M
 
 ### P1-06 Tool client used by graph nodes

@@ -12,6 +12,7 @@ from app.api.routes.portfolios import router as portfolios_router
 from app.api.routes.preferences import router as preferences_router
 from app.api.routes.rebalance import router as rebalance_router
 from app.core.config import get_settings
+from app.tools.router import router as tools_router
 
 # Routes that don't require a token (health check + OPTIONS preflight)
 _OPEN_PATHS = {"/health", "/"}
@@ -42,8 +43,12 @@ def create_app() -> FastAPI:
         if not required_token:
             return await call_next(request)
 
-        # Always allow health check and OPTIONS preflight
-        if request.method == "OPTIONS" or request.url.path in _OPEN_PATHS:
+        # Always allow health check, OPTIONS preflight, and tool service endpoints
+        if (
+            request.method == "OPTIONS"
+            or request.url.path in _OPEN_PATHS
+            or request.url.path.startswith("/tools")
+        ):
             return await call_next(request)
 
         token = request.headers.get("x-api-token", "")
@@ -56,6 +61,12 @@ def create_app() -> FastAPI:
 
         return await call_next(request)
 
+    app_role = os.environ.get("APP_ROLE", "api").lower().strip()
+    if app_role == "tools":
+        app.include_router(health_router)
+        app.include_router(tools_router)
+        return app
+
     app.include_router(approvals_router, prefix="/api")
     app.include_router(explain_router, prefix="/api")
     app.include_router(intelligence_router, prefix="/api")
@@ -64,6 +75,7 @@ def create_app() -> FastAPI:
     app.include_router(portfolios_router, prefix="/api")
     app.include_router(preferences_router, prefix="/api")
     app.include_router(rebalance_router, prefix="/api")
+    app.include_router(tools_router)
     return app
 
 
