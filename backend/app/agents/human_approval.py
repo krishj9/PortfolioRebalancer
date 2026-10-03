@@ -17,8 +17,13 @@ class HumanApprovalWorkflowAgent:
     ) -> tuple[AgentStageResult, ApprovalArtifact]:
         stage = completed_stage(self.name, "Created pending human approval artifact.")
         recommendation.agent_stages.append(stage)
+
+        idempotency_key = correlation.idempotency_key or correlation.request_id
+        account_id = request.account_profile.account_id
+        approval_id = "apr_" + hashlib.sha256((account_id + idempotency_key).encode("utf-8")).hexdigest()[:20]
+
         approval = ApprovalArtifact(
-            approval_id=new_id("apr"),
+            approval_id=approval_id,
             correlation=correlation,
             recommendation_hash=self._hash_recommendation(recommendation),
             recommendation=recommendation,

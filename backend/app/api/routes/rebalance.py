@@ -1,6 +1,6 @@
-from typing import Annotated
+from typing import Annotated, Optional
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Header
 
 from app.contracts import OrchestrationResponse, PortfolioRebalanceRequest
 from app.core.config import Settings, get_settings
@@ -20,7 +20,11 @@ async def create_rebalance_request(
     request: PortfolioRebalanceRequest,
     settings: Annotated[Settings, Depends(get_settings)],
     orchestrator: Annotated[Orchestrator, Depends(get_orchestrator)],
+    idempotency_key: Annotated[Optional[str], Header(alias="Idempotency-Key")] = None,
 ) -> OrchestrationResponse:
+    if idempotency_key and not request.correlation.idempotency_key:
+        request.correlation.idempotency_key = idempotency_key
+
     request.version = request.version.model_copy(
         update={
             "schema_version": settings.schema_version,

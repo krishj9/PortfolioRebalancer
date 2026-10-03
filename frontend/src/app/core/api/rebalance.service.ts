@@ -13,7 +13,13 @@ export class RebalanceService {
   private readonly http = inject(HttpClient);
 
   submit(request: PortfolioRebalanceRequest) {
-    return this.http.post<OrchestrationResponse>(apiUrl('/rebalance'), request);
+    const idempotencyKey =
+      request.correlation?.idempotency_key || request.correlation?.request_id || crypto.randomUUID();
+    return this.http.post<OrchestrationResponse>(apiUrl('/rebalance'), request, {
+      headers: {
+        'Idempotency-Key': idempotencyKey,
+      },
+    });
   }
 
   approve(approvalId: string, recommendationHash: string) {

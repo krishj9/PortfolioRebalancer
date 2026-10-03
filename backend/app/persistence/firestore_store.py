@@ -82,7 +82,8 @@ class FirestoreWorkflowStore:
         return sorted(portfolios, key=lambda p: p.client_profile.display_label)
 
     def save_approval(self, artifact: ApprovalArtifact) -> ApprovalArtifact:
-        """Persist or update approval artifact in Firestore."""
+        """Persist or return existing approval artifact in Firestore idempotently."""
+        doc_ref = self.approvals_collection.document(artifact.approval_id)
         data = {
             "approval_id": artifact.approval_id,
             "request_id": artifact.correlation.request_id,
@@ -91,8 +92,28 @@ class FirestoreWorkflowStore:
             "recommendation_hash": artifact.recommendation_hash,
             "artifact_json": artifact.model_dump_json(),
         }
-        self.approvals_collection.document(artifact.approval_id).set(data)
-        return artifact
+        try:
+            if hasattr(doc_ref, "create"):
+                doc_ref.create(data)
+            else:
+                existing = self.get_approval(artifact.approval_id)
+                if existing:
+                    return existing
+                doc_ref.set(data)
+            return artifact
+        except Exception as e:
+            from google.api_core.exceptions import AlreadyExists
+
+            if (
+                isinstance(e, AlreadyExists)
+                or "AlreadyExists" in type(e).__name__
+                or "already exists" in str(e).lower()
+                or getattr(e, "code", None) == 409
+            ):
+                existing = self.get_approval(artifact.approval_id)
+                if existing:
+                    return existing
+            raise
 
     def get_approval(self, approval_id: str) -> ApprovalArtifact | None:
         """Retrieve approval artifact by approval ID."""

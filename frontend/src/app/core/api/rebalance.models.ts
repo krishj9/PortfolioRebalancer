@@ -18,6 +18,12 @@ export interface PortfolioHolding {
 }
 
 export interface PortfolioRebalanceRequest {
+  correlation?: {
+    request_id?: string;
+    session_id?: string;
+    trace_id?: string;
+    idempotency_key?: string;
+  };
   actor: ActorContext;
   client_profile: {
     client_id: string;

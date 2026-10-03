@@ -101,7 +101,7 @@ def test_firestore_store_crud_mocked():
     store.save_approval(approval)
     mock_approvals_col.document.assert_called_with("apr_mock_1")
     appr_doc_ref = mock_approvals_col.document("apr_mock_1")
-    appr_doc_ref.set.assert_called()
+    appr_doc_ref.create.assert_called()
 
     mock_appr_doc = MagicMock()
     mock_appr_doc.exists = True

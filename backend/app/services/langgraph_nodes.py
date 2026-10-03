@@ -295,16 +295,18 @@ async def persist_workflow_artifacts(
         tool_client: Optional injected tool client
 
     Returns:
-        Delta dictionary (empty)
+        Delta dictionary with persisted approval artifact
     """
     logger.info(f"Persisting artifacts for {state['request_id']}")
 
     approval = state.get("approval_artifact")
     if approval is not None:
         if tool_client is not None:
-            await tool_client.persist_proposal(approval)
+            persisted = await tool_client.persist_proposal(approval)
+            return {"approval_artifact": persisted}
         elif store is not None:
-            store.save_approval(approval)
+            persisted = store.save_approval(approval)
+            return {"approval_artifact": persisted}
 
     return {}
 

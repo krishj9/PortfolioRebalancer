@@ -86,21 +86,21 @@ class Orchestrator:
             request.correlation, recommendation, request
         )
         approval.recommendation = recommendation
-        self.store.save_approval(approval)
+        persisted_approval = self.store.save_approval(approval)
         self.store.add_audit_event(
             event_type="APPROVAL_ARTIFACT_CREATED",
             correlation=request.correlation,
             actor_id=request.actor.actor_id,
-            outcome=approval.approval_status,
-            details={"approval_id": approval.approval_id},
+            outcome=persisted_approval.approval_status,
+            details={"approval_id": persisted_approval.approval_id},
         )
 
         return OrchestrationResponse(
             correlation=request.correlation,
             version=request.version,
             workflow_state=workflow_state,
-            recommendation_package=recommendation,
-            approval_artifact=approval,
+            recommendation_package=persisted_approval.recommendation or recommendation,
+            approval_artifact=persisted_approval,
         )
 
     def _summary(self, proposal_status: str) -> str:

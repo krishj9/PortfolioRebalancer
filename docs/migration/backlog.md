@@ -110,6 +110,7 @@ Paths are relative to the repo root. "New" means the file doesn't exist yet.
 - **Files:** `backend/app/agents/human_approval.py`, `backend/app/tools/router.py`, `backend/app/persistence/firestore_store.py`, `frontend/src/app/core/api/rebalance.service.ts` (send `Idempotency-Key`)
 - **Scope:** `approval_id = "apr_" + sha256(account_id + idempotency_key)[:20]`, where the key comes from the client (falling back to `correlation.request_id`). Persist with Firestore `create()`. If the record exists, return the stored artifact.
 - **Deps:** P1-04 · **Accept:** two identical POSTs produce one Firestore document.
+- **Status:** **PASSED** (2026-10-03). Updated `HumanApprovalWorkflowAgent` to derive `approval_id = "apr_" + sha256((account_id + idempotency_key).encode())[:20]`. Updated `FirestoreWorkflowStore.save_approval` to use `doc_ref.create(data)` and catch `AlreadyExists` (or 409 conflict), idempotently returning the stored artifact. Updated `InMemoryWorkflowStore.save_approval` similarly. Added `Idempotency-Key` header support to `/api/rebalance` endpoint and Angular frontend `rebalance.service.ts`. Created `backend/tests/test_idempotency.py` with 5 tests passing (including live verification on GCP Firestore in `mybrightday-dev` proving 2 duplicate saves produce exactly 1 Firestore document).
 - **Test:** new `test_idempotency.py` · **Effort:** S
 
 ### P1-08 Agent Runtime wrapper and deploy script

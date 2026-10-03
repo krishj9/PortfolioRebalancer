@@ -73,6 +73,8 @@ class InMemoryWorkflowStore:
         )
 
     def save_approval(self, artifact: ApprovalArtifact) -> ApprovalArtifact:
+        if artifact.approval_id in self.approvals:
+            return self.approvals[artifact.approval_id]
         self.approvals[artifact.approval_id] = artifact
         return artifact
 
