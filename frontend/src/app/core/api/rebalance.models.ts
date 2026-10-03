@@ -149,6 +149,17 @@ export interface OrchestrationResponse {
       summary?: string;
     }>;
   };
+  structured_error?: StructuredError | null;
+  provider_trace_url?: string | null;
+}
+
+export interface StructuredError {
+  code: string;
+  message: string;
+  severity?: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL' | string;
+  retryable?: boolean;
+  source?: string;
+  details?: Record<string, any>;
 }
 
 export interface ApprovalTransitionResult {
