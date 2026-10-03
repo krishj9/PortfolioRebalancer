@@ -39,7 +39,27 @@ class FeatureFlags(BaseSettings):
 
 
 class LLMConfig(BaseSettings):
-    """LLM configuration for Bedrock integration."""
+    """LLM configuration for Bedrock and Gemini integration."""
+
+    # LLM provider selection (gemini | bedrock)
+    provider: Literal["gemini", "bedrock"] = Field(
+        default="gemini",
+        description="LLM provider: gemini or bedrock",
+    )
+
+    # Gemini configuration (Vertex AI)
+    gemini_project_id: str | None = Field(
+        default="mybrightday-dev",
+        description="GCP project ID for Gemini (Vertex AI)",
+    )
+    gemini_location: str = Field(
+        default="us-central1",
+        description="GCP region for Gemini (Vertex AI)",
+    )
+    gemini_model: str = Field(
+        default="gemini-2.5-flash",
+        description="Default Gemini model ID",
+    )
 
     # Bedrock configuration
     bedrock_region: str = Field(default="us-east-1", description="AWS region for Bedrock")
@@ -185,6 +205,11 @@ class Settings(BaseSettings):
     llm_config: LLMConfig = Field(default_factory=LLMConfig)
     cost_config: CostManagementConfig = Field(default_factory=CostManagementConfig)
     tracing_config: TracingConfig = Field(default_factory=TracingConfig)
+
+    @property
+    def llm_provider(self) -> str:
+        """LLM provider configured in llm_config."""
+        return self.llm_config.provider
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 

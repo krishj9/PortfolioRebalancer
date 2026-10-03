@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
-from app.adapters.bedrock import BedrockModelAdapter
+from app.adapters.model_factory import get_model_adapter
 from app.contracts.analysis import DriftItem
 from app.core.config import get_feature_flags, get_llm_config
 from app.persistence.dependencies import get_workflow_store
@@ -139,11 +139,16 @@ Investor question: {question}"""
         return
 
     try:
-        bedrock = BedrockModelAdapter()
+        adapter = get_model_adapter()
+        model_id = (
+            llm_config.gemini_model
+            if getattr(llm_config, "provider", "gemini") == "gemini"
+            else llm_config.risk_agent_model
+        )
 
         # Use streaming invoke
-        async for chunk in bedrock.invoke_model_streaming(
-            model_id=llm_config.risk_agent_model,
+        async for chunk in adapter.invoke_model_streaming(
+            model_id=model_id,
             system_prompt=system_prompt,
             prompt=user_prompt,
             temperature=0.5,
@@ -287,7 +292,7 @@ def _deterministic_scenario_summary(drift_items, policy_result, would_be_blocked
 
 async def _llm_scenario_summary(drift_items, policy_result, would_be_blocked: bool, scenario: dict) -> str:
     llm_config = get_llm_config()
-    bedrock = BedrockModelAdapter()
+    adapter = get_model_adapter()
 
     drift_text = "; ".join(
         f"{d.key}: current {d.current_pct}% vs target {d.target_pct}% (drift {d.drift_pct}%)"
@@ -300,8 +305,13 @@ Policy verdict: {policy_result.verdict.value}
 
 In 1-2 sentences, explain what this scenario means for the investor. Be specific about what changes and any risks."""
 
-    response = await bedrock.invoke_model(
-        model_id=llm_config.risk_agent_model,
+    model_id = (
+        llm_config.gemini_model
+        if getattr(llm_config, "provider", "gemini") == "gemini"
+        else llm_config.risk_agent_model
+    )
+    response = await adapter.invoke_model(
+        model_id=model_id,
         system_prompt="You are a portfolio advisor. Give a brief, plain-language scenario impact summary.",
         prompt=prompt,
         temperature=0.3,

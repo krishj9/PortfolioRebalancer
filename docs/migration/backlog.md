@@ -73,11 +73,12 @@ Paths are relative to the repo root. "New" means the file doesn't exist yet.
 - **Status:** **PASSED** (2026-10-03). Updated all `.invoke(` calls across all 4 agents to `invoke_model(...)`, supported `prompt` / `user_prompt` interchangeably, and fixed latent attribute access in LLM pathways. Created `test_agent_llm_path.py` which validates that all 4 agents invoke `invoke_model` when LLM flags are on, and fall back to deterministic behavior when flags are off.
 - **Test:** new `backend/tests/test_agent_llm_path.py` · **Effort:** S
 
-### P1-03 Gemini model adapter
+### P1-03 Gemini model adapter [COMPLETED]
 - **Goal:** Replace Bedrock with Gemini on Vertex using ADC, with the same interface.
 - **Files:** new `backend/app/adapters/gemini.py`, new `backend/app/adapters/model_factory.py`, `backend/app/core/config.py`, `backend/app/api/routes/explain.py`, `backend/app/services/langgraph_graph.py` (adapter construction), `backend/pyproject.toml` (`google-genai`)
 - **Scope:** Implement `invoke_model` and `invoke_model_streaming` returning the existing `ModelResponse`/`TokenUsage`. Select the provider with `LLM_PROVIDER=gemini|bedrock`. Use one Gemini model ID from config (verify the current model name in P0). Keep Bedrock for local use.
 - **Deps:** P1-02 · **Accept:** the explain endpoint streams from Gemini in the dev project. Token usage is populated.
+- **Status:** **PASSED** (2026-10-03). Implemented `GeminiModelAdapter` via `google-genai` SDK on Vertex AI (`us-central1`), `model_factory.py` with provider selection (`LLM_PROVIDER=gemini|bedrock`), model resolution with Claude fallback, and configured `thinking_budget=0` for deterministic max token preservation. Verified live streaming and token usage on Vertex AI project `mybrightday-dev` for `/api/recommendations/{id}/explain`. Unit test suite with 8 tests passed in `test_gemini_adapter.py`.
 - **Test:** mocked unit test + manual · **Effort:** M
 
 ### P1-04 Firestore WorkflowStore

@@ -174,7 +174,7 @@ async def hydrate_memory_node(state: WorkflowGraphState) -> dict:
     """Execute Memory Agent to retrieve and synthesize client context."""
     logger.info(f"Executing Memory Agent for {state['request_id']}")
 
-    from app.adapters.bedrock import BedrockModelAdapter
+    from app.adapters.model_factory import get_model_adapter
     from app.adapters.prompts import PromptTemplateLoader
     from app.adapters.validation import ResponseValidator
     from app.agents.memory import MemoryPersonalizationAgent
@@ -184,7 +184,7 @@ async def hydrate_memory_node(state: WorkflowGraphState) -> dict:
         feature_flags = get_feature_flags()
         if feature_flags.memory_agent_llm_enabled:
             agent = MemoryPersonalizationAgent(
-                bedrock_adapter=BedrockModelAdapter(),
+                bedrock_adapter=get_model_adapter(),
                 prompt_loader=PromptTemplateLoader(),
                 validator=ResponseValidator(),
             )
@@ -260,9 +260,21 @@ async def _placeholder_rebalancing_node(state: WorkflowGraphState) -> dict:
     """Execute Portfolio Rebalancing Agent with deterministic drift calculation."""
     logger.info(f"Rebalancing agent for {state['request_id']}")
 
+    from app.adapters.model_factory import get_model_adapter
+    from app.adapters.prompts import PromptTemplateLoader
+    from app.adapters.validation import ResponseValidator
     from app.agents.rebalancing import PortfolioRebalancingAgent
+    from app.core.config import get_feature_flags
 
-    agent = PortfolioRebalancingAgent()
+    feature_flags = get_feature_flags()
+    if feature_flags.rebalancing_agent_llm_enabled:
+        agent = PortfolioRebalancingAgent(
+            bedrock_adapter=get_model_adapter(),
+            prompt_loader=PromptTemplateLoader(),
+            validator=ResponseValidator(),
+        )
+    else:
+        agent = PortfolioRebalancingAgent()
     stage_result, payload = await agent.run(state["request"])
     return {
         "rebalancing_output": payload,
@@ -274,12 +286,24 @@ async def _placeholder_risk_node(state: WorkflowGraphState) -> dict:
     """Execute Risk & Compliance Agent with deterministic policy evaluation."""
     logger.info(f"Risk agent for {state['request_id']}")
 
+    from app.adapters.model_factory import get_model_adapter
+    from app.adapters.prompts import PromptTemplateLoader
+    from app.adapters.validation import ResponseValidator
     from app.agents.risk_compliance import RiskComplianceAgent
+    from app.core.config import get_feature_flags
 
     request = state["request"]
     drift = state.get("rebalancing_output", {}).get("drift", [])
 
-    agent = RiskComplianceAgent()
+    feature_flags = get_feature_flags()
+    if feature_flags.risk_agent_llm_enabled:
+        agent = RiskComplianceAgent(
+            bedrock_adapter=get_model_adapter(),
+            prompt_loader=PromptTemplateLoader(),
+            validator=ResponseValidator(),
+        )
+    else:
+        agent = RiskComplianceAgent()
     stage_result, result = await agent.run(
         request.portfolio_snapshot, drift, request.risk_profile
     )
@@ -293,7 +317,7 @@ async def _placeholder_trade_proposal_node(state: WorkflowGraphState) -> dict:
     """Execute Trade Execution Proposal Agent with real deterministic logic."""
     logger.info(f"Trade proposal agent for {state['request_id']}")
 
-    from app.adapters.bedrock import BedrockModelAdapter
+    from app.adapters.model_factory import get_model_adapter
     from app.adapters.prompts import PromptTemplateLoader
     from app.adapters.validation import ResponseValidator
     from app.agents.base import failed_stage
@@ -315,7 +339,7 @@ async def _placeholder_trade_proposal_node(state: WorkflowGraphState) -> dict:
 
         if feature_flags.trade_proposal_agent_llm_enabled:
             agent = TradeExecutionProposalAgent(
-                bedrock_adapter=BedrockModelAdapter(),
+                bedrock_adapter=get_model_adapter(),
                 prompt_loader=PromptTemplateLoader(),
                 validator=ResponseValidator(),
             )
