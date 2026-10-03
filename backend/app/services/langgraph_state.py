@@ -1,11 +1,15 @@
-"""LangGraph workflow state schema and types."""
-
+import operator
 from datetime import datetime
-from typing import Literal, Optional, TypedDict
+from typing import Annotated, Any, Literal, Optional, TypedDict
 
-from app.contracts.analysis import AgentStageResult, RecommendationPackage, RiskPolicyResponse
+from app.contracts.analysis import (
+    AgentStageResult,
+    ApprovalArtifact,
+    ExecutionProposalResponse,
+    RecommendationPackage,
+    RiskPolicyResponse,
+)
 from app.contracts.common import WorkflowState
-from app.contracts.analysis import ApprovalArtifact
 from app.contracts.workflow import PortfolioRebalanceRequest
 
 
@@ -36,7 +40,7 @@ class WorkflowGraphState(TypedDict, total=False):
     # ========================================================================
     # Tracing
     # ========================================================================
-    trace_provider: Literal["bedrock_agentcore", "langsmith"]
+    trace_provider: Literal["bedrock_agentcore", "langsmith", "gcp_cloud_trace"]
     provider_trace_url: Optional[str]
 
     # ========================================================================
@@ -58,28 +62,28 @@ class WorkflowGraphState(TypedDict, total=False):
     sentiment_output: Optional[dict]
     rebalancing_output: Optional[dict]
     risk_policy_output: Optional[RiskPolicyResponse]
-    trade_proposal_output: Optional[dict]
+    trade_proposal_output: Optional[Any]
     guardrail_result: Optional[dict]
     approval_artifact: Optional[ApprovalArtifact]
 
     # ========================================================================
     # Agent Stage Results (for UI display)
     # ========================================================================
-    agent_stages: list[AgentStageResult]
+    agent_stages: Annotated[list[AgentStageResult], operator.add]
 
     # ========================================================================
     # Quality Indicators
     # ========================================================================
     confidence_map: dict[str, float]
-    degraded_reasons: list[str]
-    blockers: list[str]
+    degraded_reasons: Annotated[list[str], operator.add]
+    blockers: Annotated[list[str], operator.add]
 
     # ========================================================================
     # Final Output
     # ========================================================================
     recommendation_package: Optional[RecommendationPackage]
     workflow_state: WorkflowState
-    audit_event_ids: list[str]
+    audit_event_ids: Annotated[list[str], operator.add]
 
     # ========================================================================
     # Error Handling

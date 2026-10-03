@@ -67,15 +67,6 @@ def route_after_risk_policy(
         logger.warning(
             f"Policy verdict {verdict} blocks trade proposal for {state['request_id']}"
         )
-
-        # Mark workflow as blocked
-        state["workflow_state"] = WorkflowState.BLOCKED
-
-        # Add blocker
-        from app.services.langgraph_state import add_blocker
-
-        add_blocker(state, f"Policy verdict: {verdict.value}")
-
         # Skip trade proposal generation
         return "assemble_recommendation"
 
@@ -89,8 +80,7 @@ def route_after_guardrails(
     """
     Route based on guardrail result.
 
-    If guardrails hard-block output, mark workflow as BLOCKED and skip
-    approval artifact creation.
+    If guardrails hard-block output, skip approval artifact creation.
 
     Args:
         state: Current workflow state
@@ -108,15 +98,9 @@ def route_after_guardrails(
 
     if action == "BLOCKED":
         logger.warning(f"Guardrails blocked output for {state['request_id']}")
-
-        # Mark workflow as blocked
         state["workflow_state"] = WorkflowState.BLOCKED
-
-        # Add blocker
         from app.services.langgraph_state import add_blocker
-
         add_blocker(state, "GUARDRAIL_VIOLATION")
-
         # Skip approval artifact creation
         return "emit_workflow_audit_event"
 

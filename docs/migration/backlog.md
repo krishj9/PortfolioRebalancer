@@ -57,11 +57,12 @@ Paths are relative to the repo root. "New" means the file doesn't exist yet.
 
 ## Phase 1: Deploy the existing workflow
 
-### P1-01 Fix LangGraph approval and persistence nodes (D1, D2)
+### P1-01 Fix LangGraph approval and persistence nodes (D1, D2) [COMPLETED]
 - **Goal:** Make the graph produce the same `OrchestrationResponse` as `Orchestrator`.
-- **Files:** `backend/app/services/langgraph_nodes.py`, `backend/app/services/langgraph_graph.py`
+- **Files:** `backend/app/services/langgraph_nodes.py`, `backend/app/services/langgraph_graph.py`, `backend/app/services/langgraph_state.py`, `backend/tests/test_graph_parity.py`
 - **Scope:** `create_approval_artifact` uses `HumanApprovalWorkflowAgent`. `persist_workflow_artifacts` and `emit_workflow_audit_event` call an injected persistence port (a `WorkflowStore` locally, the tool client remotely). Add `save_portfolio`/audit parity. Don't change graph topology.
 - **Deps:** P0-02 · **Accept:** P0-02 test passes (remove `xfail`). Trades are identical to `Orchestrator` for the sample payloads.
+- **Status:** **PASSED** (2026-10-03). Resolved defects D0a (Decimal/float operand in `validate_request`), D0b (parallel fan-out branch updates using `Annotated[..., operator.add]` reducers), D1 (`ApprovalArtifact` creation using `HumanApprovalWorkflowAgent`), and D2 (`WorkflowStore` injected into graph nodes to save portfolio, approval, and audit events). `test_graph_parity.py` passed with 100% identical trades, allocations, risk verdicts, and approval artifacts.
 - **Test:** `test_graph_parity.py` · **Effort:** M
 
 ### P1-02 Fix agent LLM call name (D3)

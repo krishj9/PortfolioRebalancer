@@ -2,16 +2,18 @@
 
 import logging
 from datetime import datetime
+from typing import Any, Optional
 
-from app.contracts.analysis import PolicyVerdictStatus
-from app.contracts.common import WorkflowState
-from app.services.langgraph_state import (
-    WorkflowGraphState,
-    add_agent_stage,
-    add_audit_event_id,
-    add_blocker,
-    add_degraded_reason,
+from app.contracts.analysis import (
+    ApprovalArtifact,
+    ExecutionProposalResponse,
+    PolicyVerdictStatus,
+    RecommendationPackage,
 )
+from app.contracts.common import WorkflowState
+from app.contracts.domain import PortfolioRecord
+from app.persistence.memory_store import WorkflowStore
+from app.services.langgraph_state import WorkflowGraphState
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +23,7 @@ logger = logging.getLogger(__name__)
 # ============================================================================
 
 
-async def validate_request(state: WorkflowGraphState) -> WorkflowGraphState:
+async def validate_request(state: WorkflowGraphState) -> dict:
     """
     Validate request schema and business rules.
 
@@ -29,20 +31,19 @@ async def validate_request(state: WorkflowGraphState) -> WorkflowGraphState:
         state: Current workflow state
 
     Returns:
-        Updated state with validation results
+        Delta dictionary with validation results
     """
     logger.info(f"Validating request {state['request_id']}")
 
     request = state["request"]
-
-    # Basic validation (schema validation happens at API layer)
     errors = []
 
-    # Validate allocation targets sum to 100%
+    # Validate allocation targets sum to 100% (support both 100-scale and 1.0-scale)
     if hasattr(request, "allocation_target"):
         total = sum(request.allocation_target.asset_class_targets.values())
-        if abs(total - 1.0) > 0.01:  # Allow 1% tolerance
-            errors.append(f"Allocation targets sum to {total:.2%}, expected 100%")
+        total_flt = float(total)
+        if abs(total_flt - 100.0) > 1.0 and abs(total_flt - 1.0) > 0.01:
+            errors.append(f"Allocation targets sum to {total_flt}, expected 100%")
 
     # Validate holdings have positive quantities
     if hasattr(request, "portfolio_snapshot"):
@@ -51,14 +52,16 @@ async def validate_request(state: WorkflowGraphState) -> WorkflowGraphState:
                 errors.append(f"Invalid quantity for {holding.symbol}: {holding.quantity}")
 
     if errors:
-        state["validation_error"] = {"errors": errors, "timestamp": datetime.now().isoformat()}
-        state["workflow_state"] = WorkflowState.BLOCKED
-        add_blocker(state, "Request validation failed")
+        return {
+            "validation_error": {"errors": errors, "timestamp": datetime.now().isoformat()},
+            "workflow_state": WorkflowState.BLOCKED,
+            "blockers": ["Request validation failed"],
+        }
 
-    return state
+    return {}
 
 
-async def initialize_context_and_trace(state: WorkflowGraphState) -> WorkflowGraphState:
+async def initialize_context_and_trace(state: WorkflowGraphState) -> dict:
     """
     Initialize tracing context and correlation metadata.
 
@@ -66,61 +69,70 @@ async def initialize_context_and_trace(state: WorkflowGraphState) -> WorkflowGra
         state: Current workflow state
 
     Returns:
-        Updated state with trace context
+        Delta dictionary with trace context
     """
     logger.info(f"Initializing trace context for {state['request_id']}")
 
-    # Initialize trace provider (placeholder - actual implementation would use real provider)
     trace_provider = state.get("trace_provider", "bedrock_agentcore")
+    provider_trace_url = None
 
-    # Generate trace URL (placeholder)
     if trace_provider == "bedrock_agentcore":
-        state["provider_trace_url"] = (
+        provider_trace_url = (
             f"https://console.aws.amazon.com/cloudwatch/home?"
-            f"region=us-east-1#logsV2:logs-insights?queryDetail=~(source~'{state['trace_id']})"
+            f"region=us-east-1#logsV2:logs-insights?queryDetail=~(source~'{state['trace_id']}')"
         )
     elif trace_provider == "langsmith":
-        state["provider_trace_url"] = (
+        provider_trace_url = (
             f"https://smith.langchain.com/o/org/projects/p/project/r/{state['trace_id']}"
         )
+    elif trace_provider == "gcp_cloud_trace":
+        provider_trace_url = (
+            f"https://console.cloud.google.com/traces/list?project=mybrightday-dev&tid={state['trace_id']}"
+        )
 
-    logger.info(f"Trace URL: {state.get('provider_trace_url')}")
+    logger.info(f"Trace URL: {provider_trace_url}")
 
-    return state
+    return {"provider_trace_url": provider_trace_url}
 
 
-async def log_request_audit_event(state: WorkflowGraphState) -> WorkflowGraphState:
+async def log_request_audit_event(
+    state: WorkflowGraphState, store: Optional[WorkflowStore] = None
+) -> dict:
     """
-    Log request received audit event.
+    Log request received audit event and save portfolio.
 
     Args:
         state: Current workflow state
+        store: Optional injected persistence store
 
     Returns:
-        Updated state with audit event ID
+        Delta dictionary with audit event ID
     """
     logger.info(f"Logging audit event for {state['request_id']}")
 
-    # Generate audit event ID
+    request = state["request"]
     event_id = f"audit-{state['request_id']}-request-received"
 
-    # Log audit event (placeholder - actual implementation would write to DynamoDB)
-    audit_event = {
-        "event_id": event_id,
-        "event_type": "REQUEST_RECEIVED",
-        "request_id": state["request_id"],
-        "session_id": state["session_id"],
-        "trace_id": state["trace_id"],
-        "actor_id": state["user_role_context"]["actor_id"],
-        "timestamp": datetime.now().isoformat(),
-        "outcome": "ACCEPTED" if not state.get("validation_error") else "REJECTED",
-    }
+    if store is not None:
+        store.add_audit_event(
+            event_type="REQUEST_RECEIVED",
+            correlation=request.correlation,
+            actor_id=request.actor.actor_id,
+            outcome="ACCEPTED" if not state.get("validation_error") else "REJECTED",
+        )
+        store.save_portfolio(
+            PortfolioRecord(
+                client_profile=request.client_profile,
+                account_profile=request.account_profile,
+                portfolio_snapshot=request.portfolio_snapshot,
+                allocation_target=request.allocation_target,
+                risk_profile=request.risk_profile,
+                updated_at=request.portfolio_snapshot.as_of,
+                source="rebalance_request",
+            )
+        )
 
-    logger.info(f"Audit event: {audit_event}")
-
-    add_audit_event_id(state, event_id)
-
-    return state
+    return {"audit_event_ids": [event_id]}
 
 
 # ============================================================================
@@ -128,30 +140,27 @@ async def log_request_audit_event(state: WorkflowGraphState) -> WorkflowGraphSta
 # ============================================================================
 
 
-async def apply_output_guardrails(state: WorkflowGraphState) -> WorkflowGraphState:
+async def apply_output_guardrails(state: WorkflowGraphState) -> dict:
     """
-    Apply Bedrock guardrails to recommendation output.
+    Apply guardrails to recommendation output.
 
     Args:
         state: Current workflow state
 
     Returns:
-        Updated state with guardrail results
+        Delta dictionary with guardrail results
     """
     logger.info(f"Applying guardrails for {state['request_id']}")
 
-    # Placeholder - actual implementation would call Bedrock guardrails API
     guardrail_result = {
-        "action": "NONE",  # NONE, BLOCKED
+        "action": "NONE",
         "assessments": [],
         "timestamp": datetime.now().isoformat(),
     }
 
-    # Check if recommendation contains sensitive content (simplified)
     recommendation = state.get("recommendation_package")
     if recommendation:
         summary = recommendation.summary.lower()
-        # Simple keyword check (actual implementation would use Bedrock guardrails)
         sensitive_keywords = ["password", "ssn", "credit card"]
         if any(keyword in summary for keyword in sensitive_keywords):
             guardrail_result["action"] = "BLOCKED"
@@ -159,12 +168,17 @@ async def apply_output_guardrails(state: WorkflowGraphState) -> WorkflowGraphSta
                 {"type": "SENSITIVE_INFORMATION", "action": "BLOCKED"}
             )
 
-    state["guardrail_result"] = guardrail_result
+    if guardrail_result["action"] == "BLOCKED":
+        return {
+            "guardrail_result": guardrail_result,
+            "workflow_state": WorkflowState.BLOCKED,
+            "blockers": ["GUARDRAIL_VIOLATION"],
+        }
 
-    return state
+    return {"guardrail_result": guardrail_result}
 
 
-async def assemble_recommendation(state: WorkflowGraphState) -> WorkflowGraphState:
+async def assemble_recommendation(state: WorkflowGraphState) -> dict:
     """
     Assemble final recommendation package from agent outputs.
 
@@ -172,40 +186,47 @@ async def assemble_recommendation(state: WorkflowGraphState) -> WorkflowGraphSta
         state: Current workflow state
 
     Returns:
-        Updated state with recommendation package
+        Delta dictionary with recommendation package and workflow state
     """
     logger.info(f"Assembling recommendation for {state['request_id']}")
 
-    from app.contracts.analysis import RecommendationPackage
-
-    # Get agent outputs
+    request = state["request"]
     rebalancing = state.get("rebalancing_output", {})
     risk_policy = state.get("risk_policy_output")
-    trade_proposal = state.get("trade_proposal_output", {})
+    raw_proposal = state.get("trade_proposal_output")
 
-    # Determine workflow state
+    if isinstance(raw_proposal, ExecutionProposalResponse):
+        proposal = raw_proposal
+    elif isinstance(raw_proposal, dict):
+        proposal = ExecutionProposalResponse.model_validate(raw_proposal)
+    else:
+        proposal = ExecutionProposalResponse(proposal_status="UNKNOWN")
+
+    current_allocation = rebalancing.get("current_allocation", {})
+    target_allocation = request.allocation_target.asset_class_targets
+    proposed_allocation = proposal.estimated_impact or current_allocation
+
+    # Determine workflow state and approval eligibility
     workflow_state = state.get("workflow_state", WorkflowState.NORMAL)
-    if state.get("blockers"):
+    approval_eligibility = proposal.proposal_status in {"READY_FOR_REVIEW", "NO_ACTION_NEEDED"}
+
+    if proposal.proposal_status == "BLOCKED" or state.get("blockers"):
         workflow_state = WorkflowState.BLOCKED
+        approval_eligibility = False
+    elif proposal.proposal_status == "NO_ACTION_NEEDED":
+        workflow_state = WorkflowState.LOW_CONFIDENCE
     elif state.get("degraded_reasons"):
         workflow_state = WorkflowState.DEGRADED
 
-    # Determine approval eligibility
-    proposal_status = trade_proposal.get("proposal_status", "UNKNOWN")
-    approval_eligibility = proposal_status in {"READY_FOR_REVIEW", "NO_ACTION_NEEDED"}
-
-    if workflow_state == WorkflowState.BLOCKED:
-        approval_eligibility = False
-
     # Create recommendation package
     recommendation = RecommendationPackage(
-        summary=_generate_summary(state),
-        agent_stages=state.get("agent_stages", []),
-        current_allocation=rebalancing.get("current_allocation", {}),
-        target_allocation=rebalancing.get("target_allocation", {}),
-        proposed_allocation=trade_proposal.get("estimated_impact", rebalancing.get("current_allocation", {})),
+        summary=_generate_summary(state, proposal.proposal_status),
+        agent_stages=list(state.get("agent_stages", [])),
+        current_allocation=current_allocation,
+        target_allocation=target_allocation,
+        proposed_allocation=proposed_allocation,
         risk_policy=risk_policy,
-        proposal=trade_proposal,
+        proposal=proposal,
         workflow_state=workflow_state,
         approval_eligibility=approval_eligibility,
         evidence=risk_policy.evidence if risk_policy else [],
@@ -213,116 +234,106 @@ async def assemble_recommendation(state: WorkflowGraphState) -> WorkflowGraphSta
         research_output=state.get("research_output"),
     )
 
-    state["recommendation_package"] = recommendation
-    state["workflow_state"] = workflow_state
+    return {
+        "recommendation_package": recommendation,
+        "workflow_state": workflow_state,
+    }
 
-    return state
 
-
-async def create_approval_artifact(state: WorkflowGraphState) -> WorkflowGraphState:
+async def create_approval_artifact(state: WorkflowGraphState) -> dict:
     """
-    Create approval artifact for human review.
+    Create approval artifact for human review using HumanApprovalWorkflowAgent.
 
     Args:
         state: Current workflow state
 
     Returns:
-        Updated state with approval artifact
+        Delta dictionary with approval artifact and stage result
     """
     logger.info(f"Creating approval artifact for {state['request_id']}")
 
-    from app.contracts.domain import ApprovalArtifact
+    from app.agents.human_approval import HumanApprovalWorkflowAgent
 
     recommendation = state.get("recommendation_package")
+    request = state["request"]
 
-    # Create approval artifact
-    approval = ApprovalArtifact(
-        approval_id=f"approval-{state['request_id']}",
-        request_id=state["request_id"],
-        session_id=state["session_id"],
-        created_at=datetime.now(),
-        approval_status="PENDING",
-        recommendation=recommendation,
+    approval_agent = HumanApprovalWorkflowAgent()
+    approval_stage, approval = await approval_agent.run(
+        request.correlation, recommendation, request
     )
+    approval.recommendation = recommendation
 
-    state["approval_artifact"] = approval
+    return {
+        "approval_artifact": approval,
+        "agent_stages": [approval_stage],
+    }
 
-    return state
 
-
-async def persist_workflow_artifacts(state: WorkflowGraphState) -> WorkflowGraphState:
+async def persist_workflow_artifacts(
+    state: WorkflowGraphState, store: Optional[WorkflowStore] = None
+) -> dict:
     """
     Persist workflow artifacts to storage.
 
     Args:
         state: Current workflow state
+        store: Optional injected persistence store
 
     Returns:
-        Updated state
+        Delta dictionary (empty)
     """
     logger.info(f"Persisting artifacts for {state['request_id']}")
 
-    # Placeholder - actual implementation would write to DynamoDB
-    artifacts = {
-        "request_id": state["request_id"],
-        "recommendation": state.get("recommendation_package"),
-        "approval": state.get("approval_artifact"),
-        "timestamp": datetime.now().isoformat(),
-    }
+    approval = state.get("approval_artifact")
+    if store is not None and approval is not None:
+        store.save_approval(approval)
 
-    logger.info(f"Persisted artifacts: {list(artifacts.keys())}")
-
-    return state
+    return {}
 
 
-async def emit_workflow_audit_event(state: WorkflowGraphState) -> WorkflowGraphState:
+async def emit_workflow_audit_event(
+    state: WorkflowGraphState, store: Optional[WorkflowStore] = None
+) -> dict:
     """
     Emit final workflow audit event.
 
     Args:
         state: Current workflow state
+        store: Optional injected persistence store
 
     Returns:
-        Updated state with audit event ID
+        Delta dictionary with audit event ID
     """
     logger.info(f"Emitting workflow audit event for {state['request_id']}")
 
-    # Generate audit event ID
+    request = state["request"]
+    approval = state.get("approval_artifact")
     event_id = f"audit-{state['request_id']}-workflow-completed"
 
-    # Log audit event
-    audit_event = {
-        "event_id": event_id,
-        "event_type": "WORKFLOW_COMPLETED",
-        "request_id": state["request_id"],
-        "session_id": state["session_id"],
-        "trace_id": state["trace_id"],
-        "workflow_state": state.get("workflow_state", WorkflowState.NORMAL).value,
-        "timestamp": datetime.now().isoformat(),
-        "outcome": "SUCCESS" if not state.get("error") else "FAILED",
-    }
+    if store is not None and approval is not None:
+        store.add_audit_event(
+            event_type="APPROVAL_ARTIFACT_CREATED",
+            correlation=request.correlation,
+            actor_id=request.actor.actor_id,
+            outcome=approval.approval_status,
+            details={"approval_id": approval.approval_id},
+        )
 
-    logger.info(f"Audit event: {audit_event}")
-
-    add_audit_event_id(state, event_id)
-
-    return state
+    return {"audit_event_ids": [event_id]}
 
 
-async def return_response(state: WorkflowGraphState) -> WorkflowGraphState:
+async def return_response(state: WorkflowGraphState) -> dict:
     """
-    Prepare final response.
+    Prepare final response (terminal node).
 
     Args:
         state: Current workflow state
 
     Returns:
-        Updated state (terminal node)
+        Delta dictionary (empty)
     """
     logger.info(f"Returning response for {state['request_id']}")
-
-    # State is ready for response serialization
-    return state
+    return {}
 
 
 # ============================================================================
@@ -330,17 +341,15 @@ async def return_response(state: WorkflowGraphState) -> WorkflowGraphState:
 # ============================================================================
 
 
-def _generate_summary(state: WorkflowGraphState) -> str:
+def _generate_summary(state: WorkflowGraphState, proposal_status: Optional[str] = None) -> str:
     """Generate summary based on workflow state, incorporating sentiment signals."""
     if state.get("blockers"):
         return f"Recommendation is blocked: {', '.join(state['blockers'])}"
 
-    trade_proposal = state.get("trade_proposal_output", {})
-    proposal_status = trade_proposal.get("proposal_status", "UNKNOWN")
-
-    if proposal_status == "BLOCKED":
+    status = proposal_status or "UNKNOWN"
+    if status == "BLOCKED":
         return "Recommendation is blocked by deterministic policy checks."
-    elif proposal_status == "NO_ACTION_NEEDED":
+    elif status == "NO_ACTION_NEEDED":
         return "Portfolio is already within configured allocation tolerances."
     elif state.get("degraded_reasons"):
         return f"Recommendation generated with degraded quality: {', '.join(state['degraded_reasons'])}"
@@ -357,40 +366,41 @@ def _generate_summary(state: WorkflowGraphState) -> str:
 
 
 def _sentiment_notes(state: WorkflowGraphState) -> str:
-    """
-    Build a sentiment context note for the recommendation summary.
-
-    Looks at the sentiment output and the proposed trades to surface
-    any meaningful signal: e.g. selling an asset with positive sentiment,
-    or buying an asset with negative sentiment.
-    """
+    """Build sentiment context notes for recommendation summary."""
     sentiment_output = state.get("sentiment_output")
-    trade_proposal = state.get("trade_proposal_output", {})
+    trade_proposal = state.get("trade_proposal_output")
 
     if not sentiment_output:
         return ""
 
-    # Build a symbol → sentiment map from the MCP output
     symbol_sentiments: dict[str, dict] = {}
     for item in sentiment_output.get("symbol_sentiments", []):
         sym = item.get("symbol", "").upper()
         if sym:
             symbol_sentiments[sym] = item
 
-    # Also check overall sentiment
     overall = sentiment_output.get("overall_sentiment", "NEUTRAL")
 
-    trades = trade_proposal.get("trades", [])
+    if isinstance(trade_proposal, ExecutionProposalResponse):
+        trades = trade_proposal.trades
+    elif isinstance(trade_proposal, dict):
+        trades = trade_proposal.get("trades", [])
+    else:
+        trades = []
+
     if not trades:
-        # No trades — just surface overall sentiment if non-neutral
         if overall in ("POSITIVE", "NEGATIVE"):
             return f"Market sentiment is currently {overall.lower()} across monitored asset classes."
         return ""
 
     notes = []
     for trade in trades:
-        symbol = (trade.get("symbol") or "").upper()
-        action = (trade.get("action") or "").upper()
+        symbol = (trade.symbol if hasattr(trade, "symbol") else trade.get("symbol", "")).upper()
+        action = (
+            trade.action.value
+            if hasattr(trade, "action") and hasattr(trade.action, "value")
+            else str(trade.get("action", "") if isinstance(trade, dict) else trade.action)
+        ).upper()
         sentiment = symbol_sentiments.get(symbol, {})
         sent_label = sentiment.get("overall_sentiment", overall)
 
@@ -404,14 +414,11 @@ def _sentiment_notes(state: WorkflowGraphState) -> str:
                 f"Sentiment for {symbol} is currently negative — consider timing this buy carefully."
             )
         elif action == "BUY" and sent_label == "POSITIVE":
-            notes.append(
-                f"Sentiment for {symbol} is positive, supporting this buy."
-            )
+            notes.append(f"Sentiment for {symbol} is positive, supporting this buy.")
 
     if notes:
         return "Sentiment context: " + " ".join(notes)
 
-    # No notable signal — mention overall if non-neutral
     if overall in ("POSITIVE", "NEGATIVE", "MIXED"):
         return f"Overall market sentiment: {overall.lower()}."
 
