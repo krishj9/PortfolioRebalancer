@@ -1,0 +1,44 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Python: Remote Attach (Docker Backend)",
+      "type": "debugpy",
+      "request": "attach",
+      "connect": {
+        "host": "localhost",
+        "port": 5678
+      },
+      "pathMappings": [
+        {
+          "localRoot": "${workspaceFolder}/backend",
+          "remoteRoot": "/app"
+        }
+      ]
+    },
+    {
+      "name": "Python: Run Backend Locally (Host Debug)",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "uvicorn",
+      "args": ["app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"],
+      "cwd": "${workspaceFolder}/backend",
+      "env": {
+        "PORT": "8000",
+        "PERSISTENCE_MODE": "local",
+        "DYNAMODB_ENDPOINT_URL": "http://localhost:55000",
+        "AWS_REGION": "us-east-2",
+        "RESEARCH_AGENT_URL": "http://localhost:8101/a2a/research",
+        "SENTIMENT_MCP_URL": "http://localhost:8201/mcp",
+        "FEATURE_MEMORY_AGENT_LLM_ENABLED": "true",
+        "FEATURE_RESEARCH_AGENT_LLM_ENABLED": "true",
+        "FEATURE_SENTIMENT_AGENT_LLM_ENABLED": "true",
+        "FEATURE_REBALANCING_AGENT_LLM_ENABLED": "true",
+        "FEATURE_RISK_AGENT_LLM_ENABLED": "true",
+        "FEATURE_TRADE_PROPOSAL_AGENT_LLM_ENABLED": "true",
+        "FEATURE_FALLBACK_ON_LLM_FAILURE": "true"
+      },
+      "jinja": true
+    }
+  ]
+}

@@ -214,7 +214,7 @@ async def update_preferences(
     logger.info(f"Updated preferences for client {client_id}")
 
     # Return updated preferences
-    return await get_preferences(client_id, store)
+    return await get_preferences(client_id, store, actor, settings)
 
 
 @router.get("/{client_id}/history")

@@ -8,6 +8,7 @@ services:
       - "8000:8000"
     volumes:
       - ~/.aws:/root/.aws:ro
+      - ~/.config/gcloud:/root/.config/gcloud:ro
     environment:
       - PORT=8000
       - PERSISTENCE_MODE=local
@@ -22,6 +23,9 @@ services:
       - FEATURE_RISK_AGENT_LLM_ENABLED=true
       - FEATURE_TRADE_PROPOSAL_AGENT_LLM_ENABLED=true
       - FEATURE_FALLBACK_ON_LLM_FAILURE=true
+      - GOOGLE_APPLICATION_CREDENTIALS=/root/.config/gcloud/application_default_credentials.json
+      - GCP_PROJECT=${GCP_PROJECT:-mybrightday-dev}
+      - GCP_LOCATION=${GCP_LOCATION:-us-central1}
     depends_on:
       - dynamodb
       - research-agent
